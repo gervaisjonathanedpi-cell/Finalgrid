@@ -189,6 +189,11 @@
     if(isHost) controls+=`<button class="modal-secondary" id="soundToggleBtn">Son : ${soundEnabled?'ON':'OFF'}</button>`;
 
     if(isHost) controls+=`<button class="modal-danger" id="forceEndGameBtn">Terminer la partie</button>`;
+    if(isHost && !state.winnerTeamId) controls+=`<div class="winner-test-controls">
+      <span class="winner-test-label">TEST — Déclarer vainqueur</span>
+      ${(state.teams||[]).map(t=>`<button class="modal-secondary" data-winner-team="${t.id}">🏆 ${escapeHtml(t.name)}</button>`).join('')}
+    </div>`;
+
 
     if(isHost&&(preMemory||waiting)&&state.grid.every(c=>c.state==='available'))
       controls+=`<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>`;
@@ -218,7 +223,7 @@
       controls+=`<div class="game-finish-panel">
         <div class="game-finish-title">${winner ? `🏆 ${escapeHtml(winner.name)} gagne !` : '🏁 Fin de partie'}</div>
         <div class="game-finish-scores">${scores.map(t=>`<div><span>${escapeHtml(t.name)}</span><strong>${Number(t.score)||0}</strong></div>`).join('')}</div>
-        ${isHost && !winnerId ? `<div class="winner-choice">${scores.map(t=>`<button class="modal-${autoWinner&&autoWinner.id===t.id?'primary':'secondary'}" data-winner-team="${t.id}">Vainqueur : ${escapeHtml(t.name)}</button>`).join('')}</div>`:''}
+
         ${isHost && winnerId ? `<button class="modal-primary" id="endGameBtn">Terminer la partie</button>`:''}
         ${!isHost && !winnerId ? `<div class="game-waiting-host">En attente de la décision de l’animateur.</div>`:''}
       </div>`;
@@ -257,6 +262,13 @@
     });
     document.querySelectorAll('[data-score-team]').forEach(btn=>{
       btn.onclick=()=>socket.emit('scoreDelta',{teamId:btn.dataset.scoreTeam,delta:Number(btn.dataset.scoreDelta)});
+    });
+    document.querySelectorAll('[data-winner-team]').forEach(btn=>{
+      btn.onclick=()=>{
+        if(window.confirm(`Déclarer ${btn.textContent.replace('🏆 ','')} vainqueur ?`)){
+          socket.emit('declareWinner',{teamId:btn.dataset.winnerTeam});
+        }
+      };
     });
 
     if(canSelect) document.querySelectorAll('[data-game-cell]').forEach(cell=>{
