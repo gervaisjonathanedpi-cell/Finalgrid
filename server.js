@@ -47,6 +47,7 @@ function newGame(input) {
     color: /^#[0-9a-fA-F]{6}$/.test(String(t.color || '')) ? String(t.color) : palette[i],
     chosenBy: clean(t.chosenBy, '', 40)
   }));
+  const suppliedGrid = Array.isArray(input.grid) ? input.grid : null;
   const game = {
     code, createdAt: Date.now(), lastEmptyAt: null, closed: false,
     config: {
@@ -57,8 +58,14 @@ function newGame(input) {
       totalCells,
       memorySeconds: clampInt(input.memorySeconds, 5, 120, 20)
     },
-    themes, grid: makeGrid({ cols, rows, themes }),
-    teams: [0,1].map(i => ({ id: String(i), name: clean(input.teamNames?.[i], `Équipe ${i + 1}`, 30), color: TEAM_COLORS[i], score: 0 })),
+    themes,
+    grid: suppliedGrid || makeGrid({ cols, rows, themes, questionsPerTheme }),
+    teams: [0,1].map(i => ({
+      id: String(i),
+      name: clean(input.teamNames?.[i], `Équipe ${i + 1}`, 30),
+      color: /^#[0-9a-fA-F]{6}$/.test(String(input.teamColors?.[i] || '')) ? String(input.teamColors[i]) : TEAM_COLORS[i],
+      score: 0
+    })),
     users: new Map(),
     phase: PHASES.LOBBY,
     currentPlayerId: null,
@@ -143,15 +150,28 @@ io.on('connection', socket => {
     }
   });
 
-  socket.on('createGame', ({ clientId, name, config, teamNames }) => {
+  socket.on('createGame', ({ clientId, name, config, teamNames, teamColors }) => {
     const themes = Array.isArray(config?.themes) ? config.themes : [];
     if (themes.length < 2 || themes.length > 6) return sendError(socket, 'La partie doit avoir entre 2 et 6 thèmes.');
+    const themeCount = clampInt(config?.themeCount, 2, 6, 4);
+    const questionsPerTheme = clampInt(config?.questionsPerTheme, 1, 10, 5);
+    if (themes.length !== themeCount) return sendError(socket, 'Le nombre de thèmes configuré est invalide.');
+    const expected = themeCount * questionsPerTheme;
+    const suppliedGrid = Array.isArray(config?.grid) ? config.grid : null;
+    if (!suppliedGrid || suppliedGrid.length !== expected || suppliedGrid.some(c => !themes.some(t => t.id === String(c.themeId)))) {
+      return sendError(socket, 'La grille doit être entièrement configurée avant de créer la partie.');
+    }
+    const usage = Object.fromEntries(themes.map(t => [t.id, 0]));
+    suppliedGrid.forEach(c => usage[String(c.themeId)]++);
+    if (themes.some(t => usage[t.id] !== questionsPerTheme)) return sendError(socket, 'Chaque thème doit avoir exactement son nombre de questions.');
     const game = newGame({
-      themeCount: config.themeCount,
-      questionsPerTheme: config.questionsPerTheme,
+      themeCount,
+      questionsPerTheme,
       memorySeconds: config.memorySeconds,
       themes,
-      teamNames
+      teamNames,
+      teamColors: Array.isArray(teamColors) ? teamColors : TEAM_COLORS,
+      grid: suppliedGrid.map((c,i)=>({ id:i+1, themeId:String(c.themeId), questionIndex:null, state:'available', revealedAt:null, timerEndsAt:null }))
     });
     const id = clientId || makeId();
     const user = { id, role:'host', name:clean(name,'Animateur'), teamId:null, connected:true, socketId:socket.id };
@@ -169,8 +189,8 @@ io.on('connection', socket => {
     if (user && user.connected && user.socketId !== socket.id) return sendError(socket,'Cette session est déjà connectée.');
     if (!user) user = { id, role:r, name:'', teamId:null, connected:false, socketId:null };
     user.role = r; user.name = clean(name, r === 'host' ? 'Animateur' : r === 'player' ? 'Joueur' : 'Spectateur');
-    if (r === 'player') { const team = game.teams.find(t => t.id === String(teamId)); if (!team) return sendError(socket,'Choisis une équipe.'); user.teamId = team.id; }
-    else if (r !== 'player') user.teamId = null;
+    if (r === 'player') user.teamId = user.teamId ?? null;
+    else user.teamId = null;
     user.connected=true; user.socketId=socket.id; game.users.set(id,user); persistSession(socket,game,user); socket.join(code);
     socket.emit('sessionReady',{clientId:id,code,role:r,teamId:user.teamId});
     socket.emit('joined',{code,role:r,state:publicState(game),resumed:!!game.users.get(id)}); broadcast(game);
@@ -187,10 +207,20 @@ io.on('connection', socket => {
     broadcast(game);
   });
 
+  socket.on('chooseTeam', ({ teamId }) => {
+    const ctx = requireRole(socket, 'player'); if (!ctx) return;
+    const { game, user } = ctx;
+    if (game.phase !== PHASES.LOBBY) return sendError(socket, 'Le choix d’équipe est verrouillé.');
+    if (!game.teams.some(t => t.id === String(teamId))) return sendError(socket, 'Cette équipe n’existe pas.');
+    user.teamId = String(teamId);
+    broadcast(game);
+  });
+
   socket.on('startMemory', () => {
     const ctx = requireRole(socket,'host'); if (!ctx) return; const {game}=ctx;
     if (game.phase !== PHASES.LOBBY && game.phase !== PHASES.WAITING) return;
     if (!players(game).length) return sendError(socket, 'Il faut au moins un joueur avant de lancer la mémorisation.');
+    if (players(game).some(p => p.teamId === null)) return sendError(socket, 'Chaque joueur doit choisir une équipe avant de lancer la partie.');
     if (game.grid.some(c => c.state !== 'available')) return sendError(socket,'La mémorisation est verrouillée après la première révélation.');
     game.phase = PHASES.MEMORY; game.memoryEndsAt = Date.now() + game.config.memorySeconds * 1000; broadcast(game);
   });
