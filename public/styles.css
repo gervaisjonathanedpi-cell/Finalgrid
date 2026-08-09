@@ -74,3 +74,15 @@
 @media(max-width:620px){
   .lobby-boxes,.lobby-content,.lobby-panel,.lobby-layout{max-height:74vh;padding-right:4px}
 }
+
+/* V11: keep the entire grid inside its container */
+.builder-grid-wrap{min-width:0;max-width:100%;overflow:hidden}
+.builder-grid{min-width:0;width:100%;grid-template-columns:repeat(var(--cols),minmax(0,1fr))}
+.builder-cell{min-width:0;width:100%}
+
+/* V11: selection / confirmation / reveal states */
+.game-cell.selected{border-color:#ffffff;box-shadow:0 0 0 2px #ffffff55,0 0 22px #ffffff25;transform:translateY(-2px)}
+.game-cell.selected .game-cell-hidden{color:#ffffff}
+.game-cell.revealed{z-index:1}
+.game-cell.available{cursor:pointer}
+.game-cell.unavailable{cursor:default}

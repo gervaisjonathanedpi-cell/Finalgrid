@@ -126,28 +126,27 @@
   function showGame(state) {
     currentState = state;
     const isHost = session?.role === 'host';
-    const isPlayer = session?.role === 'player';
     const total = state.config.totalCells || (state.config.themeCount * state.config.questionsPerTheme);
     const cols = state.config.cols;
     const phase = state.phase;
     const memoryActive = phase === 'MEMORY';
     const preMemory = phase === 'PRE_MEMORY';
     const waiting = phase === 'WAITING';
-    const locked = preMemory || phase === 'LOBBY';
+    const confirming = phase === 'CONFIRM';
+    const revealing = phase === 'REVEAL';
     const themeById = Object.fromEntries((state.themes || []).map(t => [t.id, t]));
+    const currentCell = state.currentCellId ? (state.grid || []).find(c => c.id === Number(state.currentCellId)) : null;
 
-    let countdown = '';
-    if (memoryActive && state.memoryEndsAt) {
-      countdown = `<span class="game-timer" data-memory-end="${state.memoryEndsAt}">--</span>`;
-    } else {
-      countdown = `<span class="game-timer">${memoryActive ? state.config.memorySeconds : '—'}</span>`;
-    }
+    let countdown = '<span class="game-timer">—</span>';
+    if (memoryActive && state.memoryEndsAt) countdown = `<span class="game-timer" data-memory-end="${state.memoryEndsAt}">--</span>`;
+    if (revealing && state.revealEndsAt) countdown = `<span class="game-timer" data-reveal-end="${state.revealEndsAt}">--</span>`;
 
     const cells = (state.grid || []).map((cell, i) => {
       const theme = themeById[cell.themeId];
       const showTheme = memoryActive || cell.state === 'revealed';
-      const unavailable = preMemory || memoryActive || cell.state === 'unavailable';
-      const cls = `game-cell ${showTheme?'revealed':''} ${unavailable?'unavailable':''} ${cell.state==='available'&&!unavailable?'available':''}`;
+      const unavailable = preMemory || memoryActive || cell.state === 'unavailable' || revealing;
+      const selected = confirming && Number(state.currentCellId) === Number(cell.id);
+      const cls = `game-cell ${showTheme?'revealed':''} ${unavailable?'unavailable':''} ${selected?'selected':''} ${cell.state==='available'&&!unavailable?'available':''}`;
       return `<button class="${cls}" type="button" data-game-cell="${cell.id}" ${unavailable?'disabled':''} ${showTheme && theme ? `style="--cell-color:${theme.color}"` : ''}>
         <span class="game-cell-number">${i+1}</span>
         ${showTheme && theme ? `<span class="game-cell-theme">${escapeHtml(theme.name)}</span>` : `<span class="game-cell-hidden">?</span>`}
@@ -158,49 +157,69 @@
     let subtitle = '';
     if (preMemory) subtitle = 'La grille est prête. L’animateur choisit quand commencer la mémorisation.';
     else if (memoryActive) subtitle = 'Mémorisez l’emplacement des couleurs et des thèmes.';
-    else if (waiting) subtitle = state.currentPlayerId ? 'En attente du premier tour.' : 'En attente du premier joueur.';
-    else if (phase === 'CONFIRM') subtitle = 'Sélection en cours.';
-    else if (phase === 'REVEAL') subtitle = 'Case révélée.';
-    else if (phase === 'FINISHED') subtitle = 'Partie terminée.';
+    else if (waiting) subtitle = state.currentPlayerId ? `Tour de ${(state.users||[]).find(u=>u.id===state.currentPlayerId)?.name || 'joueur'}.` : 'En attente d’une sélection.';
+    else if (confirming) subtitle = `Case ${state.currentCellId} sélectionnée. Confirmez votre choix.`;
+    else if (revealing) subtitle = `Case ${state.currentCellId} révélée.`;
+    else if (phase === 'FINISHED') subtitle = 'Toutes les cases ont été révélées.';
+
+    const canSelect = waiting && !isHost
+      ? state.currentPlayerId === session?.clientId
+      : waiting && isHost;
+
+    const controls = [];
+    if (isHost && (preMemory || waiting) && state.grid.every(c=>c.state==='available')) {
+      controls.push(`<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>`);
+    }
+    if (isHost && memoryActive) {
+      controls.push(`<button class="modal-secondary" id="memoryStopBtn">Arrêter la mémorisation</button>`);
+    }
+    if (confirming) {
+      controls.push(`<button class="modal-secondary" id="cancelSelectionBtn">Annuler</button>`);
+      controls.push(`<button class="modal-primary" id="confirmSelectionBtn">Confirmer la case</button>`);
+    }
+    if (waiting && state.currentPlayerId) {
+      const turnName=(state.users||[]).find(u=>u.id===state.currentPlayerId)?.name || 'joueur';
+      controls.push(`<div class="game-turn">Tour de <strong>${escapeHtml(turnName)}</strong></div>`);
+    }
+    if (revealing) {
+      controls.push(`<div class="game-turn">Case révélée — résolution en cours</div>`);
+    }
 
     openModal(title, subtitle, `
       <div class="game-screen">
         <div class="game-topbar">
-          <div><span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'ATTENTE':phase}</span><strong>${subtitle}</strong></div>
+          <div><span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'ATTENTE':confirming?'CONFIRMATION':revealing?'RÉVÉLATION':phase}</span><strong>${subtitle}</strong></div>
           <div class="game-timer-wrap"><span>Temps</span>${countdown}</div>
         </div>
         <div class="game-board-wrap">
           <div class="game-board" style="--cols:${cols}">${cells}</div>
         </div>
-        <div class="game-controls">
-          ${isHost && (preMemory || waiting) && state.grid.every(c=>c.state==='available') ? `<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>` : ''}
-          ${isHost && memoryActive ? `<button class="modal-secondary" id="memoryStopBtn">Arrêter la mémorisation</button>` : ''}
-          ${waiting && state.currentPlayerId ? `<div class="game-turn">Tour de <strong>${escapeHtml((state.users||[]).find(u=>u.id===state.currentPlayerId)?.name || 'joueur')}</strong></div>` : ''}
-        </div>
+        <div class="game-controls">${controls.join('')}</div>
       </div>`);
 
     if ($('memoryStartBtn')) $('memoryStartBtn').onclick = () => socket.emit('startMemoryTimer');
     if ($('memoryStopBtn')) $('memoryStopBtn').onclick = () => socket.emit('stopMemory');
+    if ($('cancelSelectionBtn')) $('cancelSelectionBtn').onclick = () => socket.emit('cancelSelection');
+    if ($('confirmSelectionBtn')) $('confirmSelectionBtn').onclick = () => socket.emit('confirmSelection');
 
-    // Les cases ne deviennent interactives pour la sélection qu'à l'étape
-    // suivante. Pendant cette version, la phase de mémorisation ne permet
-    // aucun clic sur la grille.
-    if (false) {
+    if (waiting && canSelect) {
       document.querySelectorAll('[data-game-cell]').forEach(cell => {
         cell.onclick = () => socket.emit('selectCell', {cellId:Number(cell.dataset.gameCell)});
       });
     }
 
-    if (memoryActive && state.memoryEndsAt) {
+    const animateCountdown = (selector, endAt) => {
       const tick = () => {
-        const el=document.querySelector('[data-memory-end]');
+        const el=document.querySelector(selector);
         if(!el) return;
-        const remaining=Math.max(0,state.memoryEndsAt-Date.now());
+        const remaining=Math.max(0,endAt-Date.now());
         el.textContent=(remaining/1000).toFixed(1)+' s';
         if(remaining>0) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
-    }
+    };
+    if (memoryActive && state.memoryEndsAt) animateCountdown('[data-memory-end]', state.memoryEndsAt);
+    if (revealing && state.revealEndsAt) animateCountdown('[data-reveal-end]', state.revealEndsAt);
   }
 
   function buildConfigStepOne() {
@@ -317,7 +336,13 @@
     const total = config.themeCount * config.questionsPerTheme;
     const cols = Math.max(2, Math.ceil(Math.sqrt(total)));
     const rows = Math.ceil(total / cols);
-    const assignments = existingAssignments ? [...existingAssignments] : Array(total).fill(null);
+    // V11 test mode: pre-fill the grid so we can test the game flow immediately.
+    // Each theme is assigned exactly its configured quota. Manual editing remains
+    // available so this can be switched back to empty-grid mode for the final UX.
+    const assignments = existingAssignments ? [...existingAssignments] :
+      Array.from({length: total}, (_, i) =>
+        config.themes[Math.floor(i / config.questionsPerTheme)]?.id ?? null
+      );
     const counts = Object.fromEntries(config.themes.map(t => [t.id, 0]));
 
     assignments.forEach(themeId => {
