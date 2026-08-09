@@ -104,3 +104,13 @@
 .score-btn{width:22px;height:22px;padding:0;border:1px solid #30496d;border-radius:5px;background:#0b1625;color:#dbe7f5;font-weight:900;cursor:pointer}
 .score-btn:hover{border-color:#76b7ff}
 @media(max-width:600px){.game-scorebar{grid-template-columns:1fr}}
+
+/* V14: final game state */
+.game-finish-panel{width:100%;display:grid;gap:10px;margin-top:4px;padding:12px;border:1px solid #1d3049;border-radius:10px;background:#07101c}
+.game-finish-title{text-align:center;font-size:16px;font-weight:950;color:#eef5ff}
+.game-finish-scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.game-finish-scores>div{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #263b57;border-radius:7px;color:#9eabc0}
+.game-finish-scores strong{font-size:18px;color:#eef5ff}
+.winner-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.game-waiting-host{text-align:center;font-size:10px;color:#77879e;padding:6px}
+@media(max-width:600px){.game-finish-scores,.winner-choice{grid-template-columns:1fr}}

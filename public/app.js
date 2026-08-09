@@ -132,6 +132,7 @@
     const waiting = phase === 'WAITING';
     const confirming = phase === 'CONFIRM';
     const revealing = phase === 'REVEAL';
+    const finished = phase === 'FINISHED';
     const cols = state.config.cols;
     const themeById = Object.fromEntries((state.themes || []).map(t => [t.id, t]));
     const currentPlayer = (state.users || []).find(u => u.id === state.currentPlayerId);
@@ -149,7 +150,7 @@
       const showTheme=memoryActive || cell.state==='revealed';
       const selected=confirming && Number(state.currentCellId)===Number(cell.id);
       const revealCell=revealing && Number(state.currentCellId)===Number(cell.id);
-      const unavailable=preMemory || memoryActive || cell.state==='unavailable' || confirming || (revealing && !revealCell);
+      const unavailable=preMemory || memoryActive || cell.state==='unavailable' || confirming || revealing || finished;
       const cls=['game-cell',showTheme?'revealed':'',unavailable?'unavailable':'',
         canSelect&&cell.state==='available'?'available':'',selected?'selected':'',
         revealCell?'active-reveal':''].filter(Boolean).join(' ');
@@ -161,13 +162,18 @@
       </button>`;
     }).join('');
 
-    const scorebar=(state.teams||[]).map(team=>`
+    const scores=state.teams||[];
+    const scorebar=scores.map(team=>`
       <div class="game-score-team" style="--team-color:${team.color}">
         <span class="game-score-dot"></span>
         <span class="game-score-name">${escapeHtml(team.name)}</span>
         <strong>${Number(team.score)||0}</strong>
-        ${isHost && revealing ? `<button type="button" class="score-btn" data-score-team="${team.id}" data-score-delta="-1">−</button><button type="button" class="score-btn" data-score-team="${team.id}" data-score-delta="1">+</button>` : ''}
+        ${isHost ? `<button type="button" class="score-btn" data-score-team="${team.id}" data-score-delta="-1">−</button><button type="button" class="score-btn" data-score-team="${team.id}" data-score-delta="1">+</button>` : ''}
       </div>`).join('');
+
+    const topScore=Math.max(...scores.map(t=>Number(t.score)||0),0);
+    const leaders=scores.filter(t=>(Number(t.score)||0)===topScore);
+    const autoWinner=(leaders.length===1)?leaders[0]:null;
 
     let subtitle='';
     if(preMemory) subtitle="La grille est prête. L’animateur choisit quand commencer la mémorisation.";
@@ -175,7 +181,7 @@
     else if(waiting) subtitle=currentPlayer?`Tour de ${currentPlayer.name}.`:"En attente du premier tour.";
     else if(confirming) subtitle=`Case ${state.currentCellId} sélectionnée.`;
     else if(revealing) subtitle=`Case ${state.currentCellId} révélée.`;
-    else if(phase==='FINISHED') subtitle="Toutes les cases ont été révélées.";
+    else if(finished) subtitle=state.winnerTeamId ? "Partie terminée." : "Toutes les cases ont été révélées. Déterminez le vainqueur.";
 
     let controls='';
     if(isHost&&(preMemory||waiting)&&state.grid.every(c=>c.state==='available'))
@@ -191,10 +197,22 @@
     if(revealing)
       controls+=`<div class="game-reveal-info">${currentTheme?`Thème : <strong>${escapeHtml(currentTheme.name)}</strong>`:'Case révélée'}</div>`;
 
+    if(finished){
+      const winnerId=state.winnerTeamId;
+      const winner=scores.find(t=>t.id===winnerId);
+      controls+=`<div class="game-finish-panel">
+        <div class="game-finish-title">${winner ? `🏆 ${escapeHtml(winner.name)} gagne !` : '🏁 Fin de partie'}</div>
+        <div class="game-finish-scores">${scores.map(t=>`<div><span>${escapeHtml(t.name)}</span><strong>${Number(t.score)||0}</strong></div>`).join('')}</div>
+        ${isHost && !winnerId ? `<div class="winner-choice">${scores.map(t=>`<button class="modal-${autoWinner&&autoWinner.id===t.id?'primary':'secondary'}" data-winner-team="${t.id}">Vainqueur : ${escapeHtml(t.name)}</button>`).join('')}</div>`:''}
+        ${isHost && winnerId ? `<button class="modal-primary" id="endGameBtn">Terminer la partie</button>`:''}
+        ${!isHost && !winnerId ? `<div class="game-waiting-host">En attente de la décision de l’animateur.</div>`:''}
+      </div>`;
+    }
+
     openModal('Partie',subtitle,`
       <div class="game-screen">
         <div class="game-topbar">
-          <div><span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'TOUR':confirming?'CONFIRMATION':revealing?'RÉVÉLATION':phase}</span><strong>${subtitle}</strong></div>
+          <div><span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'TOUR':confirming?'CONFIRMATION':revealing?'RÉVÉLATION':finished?'FIN DE PARTIE':phase}</span><strong>${subtitle}</strong></div>
           <div class="game-timer-wrap"><span>Temps</span>${countdown}</div>
         </div>
         <div class="game-scorebar">${scorebar}</div>
@@ -206,12 +224,13 @@
     if($('memoryStopBtn'))$('memoryStopBtn').onclick=()=>socket.emit('stopMemory');
     if($('cancelSelectionBtn'))$('cancelSelectionBtn').onclick=()=>socket.emit('cancelSelection');
     if($('confirmSelectionBtn'))$('confirmSelectionBtn').onclick=()=>socket.emit('confirmSelection');
+    if($('endGameBtn'))$('endGameBtn').onclick=()=>socket.emit('endGame');
 
+    document.querySelectorAll('[data-winner-team]').forEach(btn=>{
+      btn.onclick=()=>socket.emit('declareWinner',{teamId:btn.dataset.winnerTeam});
+    });
     document.querySelectorAll('[data-score-team]').forEach(btn=>{
-      btn.onclick=()=>socket.emit('scoreDelta',{
-        teamId:btn.dataset.scoreTeam,
-        delta:Number(btn.dataset.scoreDelta)
-      });
+      btn.onclick=()=>socket.emit('scoreDelta',{teamId:btn.dataset.scoreTeam,delta:Number(btn.dataset.scoreDelta)});
     });
 
     if(canSelect) document.querySelectorAll('[data-game-cell]').forEach(cell=>{
@@ -493,6 +512,14 @@
     closeModal();
     if (data.state.phase === 'LOBBY') showLobby(data.state);
     else showGame(data.state);
+  });
+
+  socket.on('gameClosed',()=>{
+    closeModal();
+    localStorage.removeItem(KEY);
+    session=null;
+    currentState=null;
+    showHome();
   });
 
   socket.on('state',(state)=>{
