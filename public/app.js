@@ -141,7 +141,7 @@
 
     let countdown='<span class="game-timer">—</span>';
     if(memoryActive && state.memoryEndsAt) countdown=`<span class="game-timer" data-memory-end="${state.memoryEndsAt}">--</span>`;
-    if(revealing && state.revealEndsAt) countdown=`<span class="game-timer" data-reveal-end="${state.revealEndsAt}">--</span>`;
+    // TEST BUILD: no 30s reveal timer.
 
     const canSelect=waiting && (isHost || state.currentPlayerId===session?.clientId);
 
@@ -247,7 +247,7 @@
       requestAnimationFrame(tick);
     };
     if(memoryActive&&state.memoryEndsAt)countdownFn('[data-memory-end]',state.memoryEndsAt);
-    if(revealing&&state.revealEndsAt)countdownFn('[data-reveal-end]',state.revealEndsAt);
+    // TEST BUILD: reveal has no countdown.
   }
 
   function buildConfigStepOne() {
