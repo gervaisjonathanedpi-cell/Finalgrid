@@ -135,66 +135,76 @@
     const confirming = phase === 'CONFIRM';
     const revealing = phase === 'REVEAL';
     const themeById = Object.fromEntries((state.themes || []).map(t => [t.id, t]));
+
+    const currentPlayer = (state.users || []).find(u => u.id === state.currentPlayerId);
     const currentCell = state.currentCellId ? (state.grid || []).find(c => c.id === Number(state.currentCellId)) : null;
+    const currentTheme = currentCell ? themeById[currentCell.themeId] : null;
 
     let countdown = '<span class="game-timer">—</span>';
     if (memoryActive && state.memoryEndsAt) countdown = `<span class="game-timer" data-memory-end="${state.memoryEndsAt}">--</span>`;
     if (revealing && state.revealEndsAt) countdown = `<span class="game-timer" data-reveal-end="${state.revealEndsAt}">--</span>`;
 
+    const canSelect = waiting && (isHost || state.currentPlayerId === session?.clientId);
+
     const cells = (state.grid || []).map((cell, i) => {
       const theme = themeById[cell.themeId];
       const showTheme = memoryActive || cell.state === 'revealed';
-      const unavailable = preMemory || memoryActive || cell.state === 'unavailable' || revealing;
-      const selected = confirming && Number(state.currentCellId) === Number(cell.id);
-      const cls = `game-cell ${showTheme?'revealed':''} ${unavailable?'unavailable':''} ${selected?'selected':''} ${cell.state==='available'&&!unavailable?'available':''}`;
-      return `<button class="${cls}" type="button" data-game-cell="${cell.id}" ${unavailable?'disabled':''} ${showTheme && theme ? `style="--cell-color:${theme.color}"` : ''}>
+      const isSelected = confirming && Number(state.currentCellId) === Number(cell.id);
+      const isRevealCell = revealing && Number(state.currentCellId) === Number(cell.id);
+      const unavailable = preMemory || memoryActive || cell.state === 'unavailable' || confirming || (revealing && !isRevealCell);
+      const cls = [
+        'game-cell',
+        showTheme ? 'revealed' : '',
+        unavailable ? 'unavailable' : '',
+        canSelect && cell.state === 'available' ? 'available' : '',
+        isSelected ? 'selected' : '',
+        isRevealCell ? 'active-reveal' : ''
+      ].filter(Boolean).join(' ');
+
+      return `<button class="${cls}" type="button" data-game-cell="${cell.id}" ${(!canSelect || unavailable || cell.state !== 'available')?'disabled':''} ${showTheme && theme ? `style="--cell-color:${theme.color}"` : ''}>
         <span class="game-cell-number">${i+1}</span>
-        ${showTheme && theme ? `<span class="game-cell-theme">${escapeHtml(theme.name)}</span>` : `<span class="game-cell-hidden">?</span>`}
+        ${showTheme && theme
+          ? `<span class="game-cell-theme">${escapeHtml(theme.name)}</span>`
+          : `<span class="game-cell-hidden">?</span>`}
       </button>`;
     }).join('');
 
-    let title = 'Partie';
     let subtitle = '';
     if (preMemory) subtitle = 'La grille est prête. L’animateur choisit quand commencer la mémorisation.';
     else if (memoryActive) subtitle = 'Mémorisez l’emplacement des couleurs et des thèmes.';
-    else if (waiting) subtitle = state.currentPlayerId ? `Tour de ${(state.users||[]).find(u=>u.id===state.currentPlayerId)?.name || 'joueur'}.` : 'En attente d’une sélection.';
-    else if (confirming) subtitle = `Case ${state.currentCellId} sélectionnée. Confirmez votre choix.`;
+    else if (waiting) subtitle = currentPlayer ? `Tour de ${currentPlayer.name}.` : 'En attente du premier tour.';
+    else if (confirming) subtitle = `Case ${state.currentCellId} sélectionnée.`;
     else if (revealing) subtitle = `Case ${state.currentCellId} révélée.`;
     else if (phase === 'FINISHED') subtitle = 'Toutes les cases ont été révélées.';
 
-    const canSelect = waiting && !isHost
-      ? state.currentPlayerId === session?.clientId
-      : waiting && isHost;
-
-    const controls = [];
-    if (isHost && (preMemory || waiting) && state.grid.every(c=>c.state==='available')) {
-      controls.push(`<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>`);
+    let controls = '';
+    if (isHost && (preMemory || waiting) && state.grid.every(c => c.state === 'available')) {
+      controls += `<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>`;
     }
     if (isHost && memoryActive) {
-      controls.push(`<button class="modal-secondary" id="memoryStopBtn">Arrêter la mémorisation</button>`);
+      controls += `<button class="modal-secondary" id="memoryStopBtn">Arrêter la mémorisation</button>`;
     }
     if (confirming) {
-      controls.push(`<button class="modal-secondary" id="cancelSelectionBtn">Annuler</button>`);
-      controls.push(`<button class="modal-primary" id="confirmSelectionBtn">Confirmer la case</button>`);
-    }
-    if (waiting && state.currentPlayerId) {
-      const turnName=(state.users||[]).find(u=>u.id===state.currentPlayerId)?.name || 'joueur';
-      controls.push(`<div class="game-turn">Tour de <strong>${escapeHtml(turnName)}</strong></div>`);
+      controls += `<button class="modal-secondary" id="cancelSelectionBtn">Annuler</button>`;
+      controls += `<button class="modal-primary" id="confirmSelectionBtn">Confirmer la case</button>`;
     }
     if (revealing) {
-      controls.push(`<div class="game-turn">Case révélée — résolution en cours</div>`);
+      controls += `<div class="game-reveal-info">${currentTheme ? `Thème : <strong>${escapeHtml(currentTheme.name)}</strong>` : 'Case révélée'}</div>`;
     }
 
-    openModal(title, subtitle, `
+    openModal('Partie', subtitle, `
       <div class="game-screen">
         <div class="game-topbar">
-          <div><span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'ATTENTE':confirming?'CONFIRMATION':revealing?'RÉVÉLATION':phase}</span><strong>${subtitle}</strong></div>
+          <div>
+            <span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'TOUR':confirming?'CONFIRMATION':revealing?'RÉVÉLATION':phase}</span>
+            <strong>${subtitle}</strong>
+          </div>
           <div class="game-timer-wrap"><span>Temps</span>${countdown}</div>
         </div>
         <div class="game-board-wrap">
           <div class="game-board" style="--cols:${cols}">${cells}</div>
         </div>
-        <div class="game-controls">${controls.join('')}</div>
+        <div class="game-controls">${controls}</div>
       </div>`);
 
     if ($('memoryStartBtn')) $('memoryStartBtn').onclick = () => socket.emit('startMemoryTimer');
@@ -202,22 +212,23 @@
     if ($('cancelSelectionBtn')) $('cancelSelectionBtn').onclick = () => socket.emit('cancelSelection');
     if ($('confirmSelectionBtn')) $('confirmSelectionBtn').onclick = () => socket.emit('confirmSelection');
 
-    if (waiting && canSelect) {
+    if (canSelect) {
       document.querySelectorAll('[data-game-cell]').forEach(cell => {
-        cell.onclick = () => socket.emit('selectCell', {cellId:Number(cell.dataset.gameCell)});
+        cell.onclick = () => socket.emit('selectCell', { cellId: Number(cell.dataset.gameCell) });
       });
     }
 
     const animateCountdown = (selector, endAt) => {
       const tick = () => {
-        const el=document.querySelector(selector);
-        if(!el) return;
-        const remaining=Math.max(0,endAt-Date.now());
-        el.textContent=(remaining/1000).toFixed(1)+' s';
-        if(remaining>0) requestAnimationFrame(tick);
+        const el = document.querySelector(selector);
+        if (!el) return;
+        const remaining = Math.max(0, endAt - Date.now());
+        el.textContent = (remaining / 1000).toFixed(1) + ' s';
+        if (remaining > 0) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     };
+
     if (memoryActive && state.memoryEndsAt) animateCountdown('[data-memory-end]', state.memoryEndsAt);
     if (revealing && state.revealEndsAt) animateCountdown('[data-reveal-end]', state.revealEndsAt);
   }
