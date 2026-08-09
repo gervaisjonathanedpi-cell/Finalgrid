@@ -12,7 +12,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const games = new Map();
 const TEAM_COLORS = ['#2f80ff', '#ef3f4f'];
-const PHASES = Object.freeze({ LOBBY:'LOBBY', MEMORY:'MEMORY', WAITING:'WAITING', CONFIRM:'CONFIRM', REVEAL:'REVEAL', FINISHED:'FINISHED', CLOSED:'CLOSED' });
+const PHASES = Object.freeze({ LOBBY:'LOBBY', PRE_MEMORY:'PRE_MEMORY', MEMORY:'MEMORY', WAITING:'WAITING', CONFIRM:'CONFIRM', REVEAL:'REVEAL', FINISHED:'FINISHED', CLOSED:'CLOSED' });
 
 const makeId = (bytes = 16) => crypto.randomBytes(bytes).toString('hex');
 function makeCode() { let c; do c = crypto.randomBytes(3).toString('hex').toUpperCase(); while (games.has(c)); return c; }
@@ -56,7 +56,7 @@ function newGame(input) {
       cols,
       rows,
       totalCells,
-      memorySeconds: clampInt(input.memorySeconds, 5, 120, 20)
+      memorySeconds: clampInt(input.memorySeconds, 5, 120, 15)
     },
     themes,
     grid: suppliedGrid || makeGrid({ cols, rows, themes, questionsPerTheme }),
@@ -218,15 +218,26 @@ io.on('connection', socket => {
 
   socket.on('startMemory', () => {
     const ctx = requireRole(socket,'host'); if (!ctx) return; const {game}=ctx;
-    if (game.phase !== PHASES.LOBBY && game.phase !== PHASES.WAITING) return;
-    if (!players(game).length) return sendError(socket, 'Il faut au moins un joueur avant de lancer la mémorisation.');
+    if (![PHASES.LOBBY, PHASES.WAITING].includes(game.phase)) return;
     if (players(game).some(p => p.teamId === null)) return sendError(socket, 'Chaque joueur doit choisir une équipe avant de lancer la partie.');
     if (game.grid.some(c => c.state !== 'available')) return sendError(socket,'La mémorisation est verrouillée après la première révélation.');
-    game.phase = PHASES.MEMORY; game.memoryEndsAt = Date.now() + game.config.memorySeconds * 1000; broadcast(game);
+    game.phase = PHASES.PRE_MEMORY; game.memoryEndsAt = null; game.currentPlayerId = null; broadcast(game);
+  });
+  socket.on('startMemoryTimer', () => {
+    const ctx=requireRole(socket,'host'); if(!ctx)return; const {game}=ctx;
+    if (![PHASES.PRE_MEMORY, PHASES.WAITING].includes(game.phase)) return;
+    if (game.grid.some(c => c.state !== 'available')) return sendError(socket,'La mémorisation est verrouillée après la première révélation.');
+    game.phase=PHASES.MEMORY;
+    game.memoryEndsAt=Date.now()+game.config.memorySeconds*1000;
+    broadcast(game);
   });
   socket.on('stopMemory', () => {
     const ctx=requireRole(socket,'host'); if(!ctx)return; const {game}=ctx;
-    if(game.phase!==PHASES.MEMORY) return; game.phase=PHASES.WAITING; game.memoryEndsAt=null; game.currentPlayerId=nextPlayer(game)?.id??null; broadcast(game);
+    if(game.phase!==PHASES.MEMORY) return;
+    game.phase=PHASES.PRE_MEMORY;
+    game.memoryEndsAt=null;
+    game.currentPlayerId=null;
+    broadcast(game);
   });
   socket.on('selectCell', ({ cellId }) => {
     const game=games.get(socket.data.gameCode); const user=userFor(game,socket); if(!game||!user) return;
