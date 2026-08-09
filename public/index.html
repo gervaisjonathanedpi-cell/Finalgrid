@@ -1,3 +1,55 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Final Grid</title><link rel="stylesheet" href="styles.css"><script src="/socket.io/socket.io.js" defer></script><script src="app.js" defer></script></head>
-<body><main id="app"><section class="screen active"><div class="hero"><span class="eyebrow">FINAL GRID</span><h1>La grille est prête.</h1><p>Prototype technique — architecture temps réel, sessions persistantes et timers serveur.</p><div class="actions"><button id="demoCreate">Créer une partie de test</button></div></div></section></main></body></html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#050812">
+  <title>Final Grid</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-blue"></div><div class="ambient ambient-red"></div><div class="scanlines"></div>
+  <main id="app">
+    <section class="home-screen">
+      <div class="topbar">
+        <div class="brand-mark"><span class="brand-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>FINAL GRID</span></div>
+        <div class="status-pill"><span class="status-dot"></span> EN LIGNE</div>
+      </div>
+      <div class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow">JEU DE QUIZ • TEMPS RÉEL</div>
+          <h1>FINAL <span>GRID</span></h1>
+          <p class="hero-subtitle">Mémorisez. Choisissez. Révélez.<br>Et prenez le contrôle de la grille.</p>
+          <div class="hero-actions">
+            <button class="primary-action" id="createBtn" type="button"><span class="action-icon">＋</span><span><strong>Créer une partie</strong><small>Vous êtes l’animateur</small></span><span class="action-arrow">→</span></button>
+            <button class="secondary-action" id="joinBtn" type="button"><span class="action-icon">↗</span><span><strong>Rejoindre une partie</strong><small>Joueur, animateur ou spectateur</small></span><span class="action-arrow">→</span></button>
+          </div>
+        </div>
+        <div class="hero-grid" aria-hidden="true">
+          <div class="grid-glow"></div>
+          <div class="mini-grid">
+            <span class="cell c1">01</span><span class="cell c2">02</span><span class="cell c3">03</span><span class="cell c4">04</span>
+            <span class="cell c5">05</span><span class="cell c6">06</span><span class="cell c7">07</span><span class="cell c8">08</span>
+            <span class="cell c9">09</span><span class="cell c10">10</span><span class="cell c11">11</span><span class="cell c12">12</span>
+            <span class="cell c13">13</span><span class="cell c14">14</span><span class="cell c15">15</span><span class="cell c16">16</span>
+          </div>
+          <div class="grid-caption"><span></span> GRILLE PRÊTE</div>
+        </div>
+      </div>
+      <div class="bottom-info">
+        <div><span class="info-label">01</span> Une partie peut accueillir joueurs, animateurs et spectateurs.</div>
+        <div><span class="info-label">02</span> Synchronisation en temps réel.</div>
+        <div><span class="info-label">03</span> Pensé pour PC, tablette et téléphone.</div>
+      </div>
+    </section>
+    <div class="modal-layer" id="modalLayer" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button class="modal-close" id="modalClose" type="button" aria-label="Fermer">×</button>
+        <div class="modal-kicker">FINAL GRID</div><h2 id="modalTitle"></h2><p id="modalDescription"></p><div id="modalContent"></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
