@@ -36,7 +36,8 @@ function newGame(input) {
   const code = makeCode();
   const cols = clampInt(input.cols, 3, 12, 5);
   const rows = clampInt(input.rows, 2, 10, 4);
-  const themes = input.themes.map((t, i) => ({ id: String(i), name: clean(t.name, `Thème ${i + 1}`, 40), color: t.color }));
+  const palette = ['#2f80ff','#ef3f4f','#22c55e','#f59e0b','#a855f7','#06b6d4'];
+  const themes = input.themes.slice(0, 6).map((t, i) => ({ id: String(i), name: clean(t.name, `Thème ${i + 1}`, 40), color: palette[i] }));
   const game = {
     code, createdAt: Date.now(), lastEmptyAt: null, closed: false,
     config: { cols, rows, memorySeconds: clampInt(input.memorySeconds, 5, 120, 20) },
@@ -128,7 +129,7 @@ io.on('connection', socket => {
 
   socket.on('createGame', ({ clientId, name, config, teamNames }) => {
     const themes = Array.isArray(config?.themes) ? config.themes : [];
-    if (themes.length < 2) return sendError(socket, 'Il faut au moins 2 thèmes.');
+    if (themes.length < 2 || themes.length > 6) return sendError(socket, 'La partie doit avoir entre 2 et 6 thèmes.');
     const game = newGame({ cols:config.cols, rows:config.rows, memorySeconds:config.memorySeconds, themes, teamNames });
     const id = clientId || makeId();
     const user = { id, role:'host', name:clean(name,'Animateur'), teamId:null, connected:true, socketId:socket.id };
