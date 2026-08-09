@@ -463,8 +463,11 @@
 
   socket.on('state',(state)=>{
     currentState = state;
-    if (session?.gameCode !== state.code) return;
+    // The server broadcasts the new phase to every connected client in the game.
+    // Do not keep a player on the lobby just because the local gameCode/session
+    // has not been updated yet.
+    if (session?.gameCode && session.gameCode !== state.code) return;
     if (state.phase === 'LOBBY') showLobby(state);
-    else if ([ 'PRE_MEMORY','MEMORY','WAITING','CONFIRM','REVEAL','FINISHED' ].includes(state.phase)) showGame(state);
+    else if (['PRE_MEMORY','MEMORY','WAITING','CONFIRM','REVEAL','FINISHED'].includes(state.phase)) showGame(state);
   });
 })();

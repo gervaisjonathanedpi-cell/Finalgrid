@@ -58,3 +58,19 @@
 .game-cell.unavailable{opacity:.9}.game-cell.revealed{border-color:var(--cell-color);background:linear-gradient(145deg,color-mix(in srgb,var(--cell-color) 26%,#08111e),#08111e);box-shadow:inset 0 0 20px color-mix(in srgb,var(--cell-color) 16%,transparent)}
 .game-cell.revealed:after{content:"";position:absolute;inset:4px;border:1px solid var(--cell-color);opacity:.25;border-radius:5px}.game-cell-number{position:absolute;left:6px;top:5px;font-size:8px;color:#65758c}.game-cell-theme{position:absolute;inset:25% 5px 5px;display:grid;place-items:center;font-size:9px;font-weight:950;color:#f3f7ff;text-align:center;text-shadow:0 1px 8px #000;overflow:hidden}.game-cell-hidden{display:grid;place-items:center;height:100%;font-size:19px;color:#52647d}.game-controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;min-height:40px}.game-turn{font-size:11px;color:#8999b0}.game-turn strong{color:#e8eef7}
 @media(max-width:600px){.game-board{gap:5px}.game-cell-theme{font-size:7px}.game-topbar{align-items:flex-start}.game-timer{font-size:20px}.game-screen{max-height:74vh}}
+
+/* V11: lobby vertical scrolling */
+.lobby-boxes, .lobby-content, .lobby-panel, .lobby-layout{
+  max-height:min(68vh,720px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding-right:7px;
+  scrollbar-width:thin;
+  scrollbar-color:#30496d #080f1b;
+}
+.lobby-boxes::-webkit-scrollbar,.lobby-content::-webkit-scrollbar,.lobby-panel::-webkit-scrollbar,.lobby-layout::-webkit-scrollbar{width:7px}
+.lobby-boxes::-webkit-scrollbar-track,.lobby-content::-webkit-scrollbar-track,.lobby-panel::-webkit-scrollbar-track,.lobby-layout::-webkit-scrollbar-track{background:#080f1b;border-radius:8px}
+.lobby-boxes::-webkit-scrollbar-thumb,.lobby-content::-webkit-scrollbar-thumb,.lobby-panel::-webkit-scrollbar-thumb,.lobby-layout::-webkit-scrollbar-thumb{background:#30496d;border-radius:8px}
+@media(max-width:620px){
+  .lobby-boxes,.lobby-content,.lobby-panel,.lobby-layout{max-height:74vh;padding-right:4px}
+}
