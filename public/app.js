@@ -183,6 +183,8 @@
     else if(finished) subtitle=state.winnerTeamId ? "Partie terminée." : "Toutes les cases ont été révélées. Déterminez le vainqueur.";
 
     let controls='';
+    if(isHost) controls+=`<button class="modal-secondary" id="soundToggleBtn">Son : ${soundEnabled?'ON':'OFF'}</button>`;
+
     if(isHost) controls+=`<button class="modal-danger" id="forceEndGameBtn">Terminer la partie</button>`;
 
     if(isHost&&(preMemory||waiting)&&state.grid.every(c=>c.state==='available'))
@@ -200,7 +202,16 @@
 
     if(finished){
       const winnerId=state.winnerTeamId;
+      const myUser=(state.users||[]).find(u=>u.id===session?.clientId);
+      const myTeam=myUser ? scores.find(t=>t.id===myUser.teamId) : null;
+      const iWon=!!(winnerId && myTeam && myTeam.id===winnerId);
+      const iLost=!!(winnerId && myTeam && myTeam.id!==winnerId);
+      const resultImage=iWon?'/assets/victoire.png':iLost?'/assets/defaite.png':null;
       const winner=scores.find(t=>t.id===winnerId);
+      if(resultImage) {
+        controls+=`<div class="game-result-card"><img src="${resultImage}" alt="${iWon?'Victoire':'Défaite'}"></div>`;
+        setTimeout(()=>playGameSound(iWon?'victory':'defeat'),0);
+      }
       controls+=`<div class="game-finish-panel">
         <div class="game-finish-title">${winner ? `🏆 ${escapeHtml(winner.name)} gagne !` : '🏁 Fin de partie'}</div>
         <div class="game-finish-scores">${scores.map(t=>`<div><span>${escapeHtml(t.name)}</span><strong>${Number(t.score)||0}</strong></div>`).join('')}</div>
@@ -222,6 +233,11 @@
       </div>`);
 
     if($('memoryStartBtn'))$('memoryStartBtn').onclick=()=>socket.emit('startMemoryTimer');
+    if($('soundToggleBtn'))$('soundToggleBtn').onclick=()=>{
+      setSoundEnabled(!soundEnabled);
+      showGame(currentState);
+    };
+
     if($('forceEndGameBtn'))$('forceEndGameBtn').onclick=()=>{
       if(window.confirm('Êtes-vous sûr de vouloir terminer la partie ? Cette action est définitive.')){
         socket.emit('forceEndGame');
@@ -519,6 +535,23 @@
     if (data.state.phase === 'LOBBY') showLobby(data.state);
     else showGame(data.state);
   });
+
+  const soundEnabledKey='finalGridSoundEnabled';
+  let soundEnabled=localStorage.getItem(soundEnabledKey)!=='0';
+  const soundCache={};
+  function playGameSound(name){
+    if(!soundEnabled)return;
+    const src=`/assets/sounds/${name}.wav`;
+    let a=soundCache[name];
+    if(!a){a=new Audio(src);a.preload='auto';soundCache[name]=a;}
+    try{a.currentTime=0;void a.play();}catch(e){}
+  }
+  function setSoundEnabled(v){
+    soundEnabled=!!v;
+    localStorage.setItem(soundEnabledKey,soundEnabled?'1':'0');
+  }
+
+  socket.on('playSound',(name)=>playGameSound(name));
 
   socket.on('gameClosed',()=>{
     closeModal();
