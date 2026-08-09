@@ -2,3 +2,14 @@
 
 /* Configuration */
 .config-panel{display:grid;gap:24px}.config-section{padding-top:2px}.config-section-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:11px}.config-section-title strong{font-size:13px}.config-section-title span{font-size:10px;color:#66758d}.config-grid-size{display:grid;grid-template-columns:1fr 1fr;gap:10px}.config-control{border:1px solid #263853;background:#060c17;border-radius:10px;padding:12px}.config-control label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#718099;font-weight:900;margin-bottom:8px}.config-control select,.config-control input{width:100%;padding:8px 9px;border:0;background:transparent;color:#fff;outline:none;font-weight:800}.config-summary{display:flex;justify-content:space-between;gap:12px;padding:11px 13px;border:1px solid #1e3555;background:#081323;border-radius:10px;color:#9aa9bd;font-size:11px}.config-summary b{color:#fff}.theme-list{display:grid;grid-template-columns:1fr 1fr;gap:9px}.theme-item{display:flex;align-items:center;gap:8px}.theme-item input{flex:1;min-width:0;margin-top:0}.theme-swatch{width:10px;height:10px;border-radius:3px;box-shadow:0 0 10px currentColor;flex:0 0 auto}.team-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.config-note{font-size:10px;color:#66758d;line-height:1.45;margin-top:8px}.config-actions{display:flex;gap:10px;position:sticky;bottom:0;padding-top:4px;background:linear-gradient(#070d1900,#070d19 22%)}.config-actions button{flex:1}@media(max-width:600px){.theme-list,.team-grid,.config-grid-size{grid-template-columns:1fr}.config-actions{position:static}}
+
+/* Configuration V4: readable controls + scrollable long form */
+.config-scroll{max-height:min(68vh,720px);overflow-y:auto;padding-right:7px;scrollbar-width:thin;scrollbar-color:#30496d #080f1b}
+.config-scroll::-webkit-scrollbar{width:7px}
+.config-scroll::-webkit-scrollbar-track{background:#080f1b;border-radius:8px}
+.config-scroll::-webkit-scrollbar-thumb{background:#30496d;border-radius:8px}
+.config-control select,.config-control input{color:#f6f8ff;background:#0b1422;border:1px solid #263853;border-radius:8px}
+.config-control select option{background:#0b1422;color:#f6f8ff}
+.config-control select:focus,.config-control input:focus{border-color:#4f8fda;outline:none;box-shadow:0 0 0 2px #2f80ff18}
+.config-actions{z-index:2}
+@media(max-width:600px){.config-scroll{max-height:72vh;padding-right:4px}}

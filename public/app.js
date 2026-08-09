@@ -31,24 +31,30 @@
 
   $('createBtn').onclick = () => {
     openModal('Configurer la partie',
-      'Prépare la grille avant d’ouvrir le lobby. Les thèmes restent libres : l’animateur saisit simplement ce qu’il souhaite utiliser.',
-      `<div class="config-panel">
+      'Définissez les thèmes et le nombre de questions par thème. La disposition de la grille sera calculée automatiquement.',
+      `<div class="config-panel config-scroll">
         <div class="config-section">
-          <div class="config-section-title"><strong>Dimensions de la grille</strong><span id="gridSizeLabel">20 cases</span></div>
+          <div class="config-section-title"><strong>Contenu de la grille</strong><span id="gridSizeLabel">20 cases</span></div>
           <div class="config-grid-size">
-            <div class="config-control"><label for="cfgCols">Colonnes</label><select id="cfgCols">${Array.from({length:10},(_,i)=>{const n=i+3;return `<option value="${n}" ${n===5?'selected':''}>${n}</option>`}).join('')}</select></div>
-            <div class="config-control"><label for="cfgRows">Lignes</label><select id="cfgRows">${Array.from({length:9},(_,i)=>{const n=i+2;return `<option value="${n}" ${n===4?'selected':''}>${n}</option>`}).join('')}</select></div>
+            <div class="config-control">
+              <label for="cfgThemeCount">Nombre de thèmes</label>
+              <select id="cfgThemeCount">${Array.from({length:5},(_,i)=>{const n=i+2;return `<option value="${n}" ${n===4?'selected':''}>${n} thèmes</option>`}).join('')}</select>
+            </div>
+            <div class="config-control">
+              <label for="cfgQuestions">Questions par thème</label>
+              <select id="cfgQuestions">${Array.from({length:10},(_,i)=>{const n=i+1;return `<option value="${n}" ${n===5?'selected':''}>${n} question${n>1?'s':''}</option>`}).join('')}</select>
+            </div>
           </div>
-          <div class="config-summary"><span>Grille finale</span><b id="gridSummary">5 × 4 — 20 cases</b></div>
+          <div class="config-summary"><span>Grille générée automatiquement</span><b id="gridSummary">4 × 5 — 20 cases</b></div>
+          <div class="config-note">La taille et la disposition de la grille sont déterminées automatiquement à partir du nombre de thèmes et de questions.</div>
         </div>
+
         <div class="config-section">
           <div class="config-section-title"><strong>Thèmes</strong><span>2 à 6 thèmes</span></div>
-          <div class="config-control"><label for="cfgThemeCount">Nombre de thèmes</label>
-            <select id="cfgThemeCount">${Array.from({length:5},(_,i)=>{const n=i+2;return `<option value="${n}" ${n===4?'selected':''}>${n}</option>`}).join('')}</select>
-          </div>
-          <div class="theme-list" id="themeList" style="margin-top:9px"></div>
+          <div class="theme-list" id="themeList"></div>
           <div class="config-note">Les thèmes ne sont pas liés aux joueurs : l’animateur saisit librement leurs intitulés.</div>
         </div>
+
         <div class="config-section">
           <div class="config-section-title"><strong>Équipes</strong><span>2 équipes</span></div>
           <div class="team-grid">
@@ -56,12 +62,14 @@
             <div class="config-control"><label for="teamB">Équipe 2</label><input id="teamB" maxlength="30" value="Équipe B"></div>
           </div>
         </div>
+
         <div class="config-section">
           <div class="config-section-title"><strong>Mémorisation</strong><span>5 à 120 secondes</span></div>
           <div class="config-control"><label for="memorySeconds">Durée</label><select id="memorySeconds">
             <option value="10">10 secondes</option><option value="15">15 secondes</option><option value="20" selected>20 secondes</option><option value="30">30 secondes</option><option value="45">45 secondes</option><option value="60">60 secondes</option>
           </select></div>
         </div>
+
         <div class="config-actions">
           <button class="modal-secondary" id="configCancel" type="button">Retour</button>
           <button class="modal-primary" id="configCreate" type="button">Créer la partie</button>
@@ -72,23 +80,46 @@
     const renderThemes = () => {
       const count = Number($('cfgThemeCount').value);
       $('themeList').innerHTML = Array.from({length:count},(_,i)=>`
-        <div class="theme-item"><span class="theme-swatch" style="color:${themeColors[i]};background:${themeColors[i]}"></span>
-        <input class="form-input theme-name" data-index="${i}" maxlength="40" value="Thème ${i+1}" aria-label="Nom du thème ${i+1}"></div>`).join('');
+        <div class="theme-item">
+          <span class="theme-swatch" style="color:${themeColors[i]};background:${themeColors[i]}"></span>
+          <input class="form-input theme-name" data-index="${i}" maxlength="40" value="Thème ${i+1}" aria-label="Nom du thème ${i+1}">
+        </div>`).join('');
     };
+
     const updateGridSummary = () => {
-      const cols=Number($('cfgCols').value), rows=Number($('cfgRows').value);
-      $('gridSizeLabel').textContent=`${cols*rows} cases`;
-      $('gridSummary').textContent=`${cols} × ${rows} — ${cols*rows} cases`;
+      const themes = Number($('cfgThemeCount').value);
+      const questions = Number($('cfgQuestions').value);
+      const total = themes * questions;
+      const cols = Math.max(2, Math.ceil(Math.sqrt(total)));
+      const rows = Math.ceil(total / cols);
+      $('gridSizeLabel').textContent = `${total} cases`;
+      $('gridSummary').textContent = `${cols} × ${rows} — ${total} cases`;
     };
-    renderThemes(); updateGridSummary();
-    $('cfgThemeCount').onchange=renderThemes; $('cfgCols').onchange=updateGridSummary; $('cfgRows').onchange=updateGridSummary;
-    $('configCancel').onclick=closeModal;
-    $('configCreate').onclick=()=>{
-      const cols=Number($('cfgCols').value), rows=Number($('cfgRows').value), memorySeconds=Number($('memorySeconds').value);
-      const themes=[...document.querySelectorAll('.theme-name')].map((input,i)=>({id:String(i),name:input.value.trim()||`Thème ${i+1}`,color:themeColors[i]}));
-      const teamNames=[$('teamA').value.trim()||'Équipe A',$('teamB').value.trim()||'Équipe B'];
-      $('configCreate').disabled=true; $('configCreate').textContent='Création…';
-      socket.emit('createGame',{clientId:session?.clientId,name:'Animateur',config:{cols,rows,memorySeconds,themes},teamNames});
+
+    renderThemes();
+    updateGridSummary();
+    $('cfgThemeCount').onchange = () => { renderThemes(); updateGridSummary(); };
+    $('cfgQuestions').onchange = updateGridSummary;
+    $('configCancel').onclick = closeModal;
+
+    $('configCreate').onclick = () => {
+      const themeCount = Number($('cfgThemeCount').value);
+      const questionsPerTheme = Number($('cfgQuestions').value);
+      const memorySeconds = Number($('memorySeconds').value);
+      const themes = [...document.querySelectorAll('.theme-name')].map((input,i)=>({
+        id:String(i), name:input.value.trim() || `Thème ${i+1}`, color:themeColors[i]
+      }));
+      const teamNames = [$('teamA').value.trim() || 'Équipe A', $('teamB').value.trim() || 'Équipe B'];
+
+      $('configCreate').disabled = true;
+      $('configCreate').textContent = 'Création…';
+
+      socket.emit('createGame', {
+        clientId: session?.clientId,
+        name: 'Animateur',
+        config: { themeCount, questionsPerTheme, memorySeconds, themes },
+        teamNames
+      });
     };
   };
 
