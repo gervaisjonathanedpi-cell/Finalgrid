@@ -122,6 +122,87 @@
     return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   }
 
+
+  function showGame(state) {
+    currentState = state;
+    const isHost = session?.role === 'host';
+    const isPlayer = session?.role === 'player';
+    const total = state.config.totalCells || (state.config.themeCount * state.config.questionsPerTheme);
+    const cols = state.config.cols;
+    const phase = state.phase;
+    const memoryActive = phase === 'MEMORY';
+    const preMemory = phase === 'PRE_MEMORY';
+    const waiting = phase === 'WAITING';
+    const locked = preMemory || phase === 'LOBBY';
+    const themeById = Object.fromEntries((state.themes || []).map(t => [t.id, t]));
+
+    let countdown = '';
+    if (memoryActive && state.memoryEndsAt) {
+      countdown = `<span class="game-timer" data-memory-end="${state.memoryEndsAt}">--</span>`;
+    } else {
+      countdown = `<span class="game-timer">${memoryActive ? state.config.memorySeconds : '—'}</span>`;
+    }
+
+    const cells = (state.grid || []).map((cell, i) => {
+      const theme = themeById[cell.themeId];
+      const showTheme = memoryActive || cell.state === 'revealed';
+      const unavailable = preMemory || memoryActive || cell.state === 'unavailable';
+      const cls = `game-cell ${showTheme?'revealed':''} ${unavailable?'unavailable':''} ${cell.state==='available'&&!unavailable?'available':''}`;
+      return `<button class="${cls}" type="button" data-game-cell="${cell.id}" ${unavailable?'disabled':''} ${showTheme && theme ? `style="--cell-color:${theme.color}"` : ''}>
+        <span class="game-cell-number">${i+1}</span>
+        ${showTheme && theme ? `<span class="game-cell-theme">${escapeHtml(theme.name)}</span>` : `<span class="game-cell-hidden">?</span>`}
+      </button>`;
+    }).join('');
+
+    let title = 'Partie';
+    let subtitle = '';
+    if (preMemory) subtitle = 'La grille est prête. L’animateur choisit quand commencer la mémorisation.';
+    else if (memoryActive) subtitle = 'Mémorisez l’emplacement des couleurs et des thèmes.';
+    else if (waiting) subtitle = state.currentPlayerId ? 'En attente du premier tour.' : 'En attente du premier joueur.';
+    else if (phase === 'CONFIRM') subtitle = 'Sélection en cours.';
+    else if (phase === 'REVEAL') subtitle = 'Case révélée.';
+    else if (phase === 'FINISHED') subtitle = 'Partie terminée.';
+
+    openModal(title, subtitle, `
+      <div class="game-screen">
+        <div class="game-topbar">
+          <div><span class="game-phase-label">${preMemory?'PRÊT':memoryActive?'MÉMORISATION':waiting?'ATTENTE':phase}</span><strong>${subtitle}</strong></div>
+          <div class="game-timer-wrap"><span>Temps</span>${countdown}</div>
+        </div>
+        <div class="game-board-wrap">
+          <div class="game-board" style="--cols:${cols}">${cells}</div>
+        </div>
+        <div class="game-controls">
+          ${isHost && (preMemory || waiting) && state.grid.every(c=>c.state==='available') ? `<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>` : ''}
+          ${isHost && memoryActive ? `<button class="modal-secondary" id="memoryStopBtn">Arrêter la mémorisation</button>` : ''}
+          ${waiting && state.currentPlayerId ? `<div class="game-turn">Tour de <strong>${escapeHtml((state.users||[]).find(u=>u.id===state.currentPlayerId)?.name || 'joueur')}</strong></div>` : ''}
+        </div>
+      </div>`);
+
+    if ($('memoryStartBtn')) $('memoryStartBtn').onclick = () => socket.emit('startMemoryTimer');
+    if ($('memoryStopBtn')) $('memoryStopBtn').onclick = () => socket.emit('stopMemory');
+
+    // Les cases ne deviennent interactives pour la sélection qu'à l'étape
+    // suivante. Pendant cette version, la phase de mémorisation ne permet
+    // aucun clic sur la grille.
+    if (false) {
+      document.querySelectorAll('[data-game-cell]').forEach(cell => {
+        cell.onclick = () => socket.emit('selectCell', {cellId:Number(cell.dataset.gameCell)});
+      });
+    }
+
+    if (memoryActive && state.memoryEndsAt) {
+      const tick = () => {
+        const el=document.querySelector('[data-memory-end]');
+        if(!el) return;
+        const remaining=Math.max(0,state.memoryEndsAt-Date.now());
+        el.textContent=(remaining/1000).toFixed(1)+' s';
+        if(remaining>0) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  }
+
   function buildConfigStepOne() {
     openModal('Configurer la partie',
       'Définissez les paramètres de la partie. La grille sera construite à l’étape suivante.',
@@ -162,7 +243,7 @@
           <div class="config-control">
             <label for="memorySeconds">Durée de mémorisation</label>
             <select id="memorySeconds">
-              <option value="10">10 secondes</option><option value="15">15 secondes</option><option value="20" selected>20 secondes</option><option value="30">30 secondes</option><option value="45">45 secondes</option><option value="60">60 secondes</option>
+              <option value="10">10 secondes</option><option value="15">15 secondes</option><option value="15" selected>15 secondes</option><option value="20">20 secondes</option><option value="30">30 secondes</option><option value="45">45 secondes</option><option value="60">60 secondes</option>
             </select>
           </div>
         </div>
@@ -362,16 +443,13 @@
           <div class="role-option"><input type="radio" name="joinRole" id="roleHost" value="host"><label for="roleHost">Animateur</label></div>
           <div class="role-option"><input type="radio" name="joinRole" id="roleSpectator" value="spectator"><label for="roleSpectator">Spectateur</label></div>
         </div></div>
-        <div id="teamField"><div class="form-label">Équipe</div><select class="form-select" id="joinTeam"><option value="0">Équipe A</option><option value="1">Équipe B</option></select></div>
         <div class="form-actions"><button class="modal-secondary" id="joinCancel" type="button">Retour</button><button class="modal-primary" id="joinSubmit" type="button">Rejoindre</button></div>
       </div>`);
-    const teamField = $('teamField');
-    document.querySelectorAll('input[name="joinRole"]').forEach(r => r.onchange = () => { teamField.style.display = r.checked && r.value === 'player' ? '' : 'none'; });
     $('joinCancel').onclick = closeModal;
     $('joinSubmit').onclick = () => {
       const code=$('joinCode').value.trim().toUpperCase(); if(!code){$('joinCode').focus();return;}
-      const name=$('joinName').value.trim()||'Joueur', role=document.querySelector('input[name="joinRole"]:checked').value, teamId=$('joinTeam').value;
-      socket.emit('joinGame',{code,role,name,teamId,clientId:session?.clientId});
+      const name=$('joinName').value.trim()||'Joueur', role=document.querySelector('input[name="joinRole"]:checked').value;
+      socket.emit('joinGame',{code,role,name,clientId:session?.clientId});
       $('joinSubmit').disabled=true; $('joinSubmit').textContent='Connexion…';
     };
   };
@@ -379,11 +457,14 @@
   socket.on('joined',(data)=>{
     saveSession({gameCode:data.code,role:data.role,teamId:data.state?.users?.find(u=>u.id===session?.clientId)?.teamId ?? session?.teamId ?? null});
     closeModal();
-    showLobby(data.state);
+    if (data.state.phase === 'LOBBY') showLobby(data.state);
+    else showGame(data.state);
   });
 
   socket.on('state',(state)=>{
     currentState = state;
-    if (state.phase === 'LOBBY' && session?.gameCode === state.code) showLobby(state);
+    if (session?.gameCode !== state.code) return;
+    if (state.phase === 'LOBBY') showLobby(state);
+    else if ([ 'PRE_MEMORY','MEMORY','WAITING','CONFIRM','REVEAL','FINISHED' ].includes(state.phase)) showGame(state);
   });
 })();
