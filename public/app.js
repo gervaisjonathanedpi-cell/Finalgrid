@@ -30,17 +30,65 @@
   });
 
   $('createBtn').onclick = () => {
-    openModal('Créer une partie','La configuration complète sera construite juste après l’accueil. Cette étape valide déjà le parcours de création et la connexion temps réel.',`
-      <div class="form-stack">
-        <div><div class="form-label">Nom de l’animateur</div><input class="form-input" id="createName" maxlength="32" value="Animateur" placeholder="Votre nom"></div>
-        <div class="form-actions"><button class="modal-secondary" id="createCancel" type="button">Retour</button><button class="modal-primary" id="createSubmit" type="button">Créer la partie</button></div>
+    openModal('Configurer la partie',
+      'Prépare la grille avant d’ouvrir le lobby. Les thèmes restent libres : l’animateur saisit simplement ce qu’il souhaite utiliser.',
+      `<div class="config-panel">
+        <div class="config-section">
+          <div class="config-section-title"><strong>Dimensions de la grille</strong><span id="gridSizeLabel">20 cases</span></div>
+          <div class="config-grid-size">
+            <div class="config-control"><label for="cfgCols">Colonnes</label><select id="cfgCols">${Array.from({length:10},(_,i)=>{const n=i+3;return `<option value="${n}" ${n===5?'selected':''}>${n}</option>`}).join('')}</select></div>
+            <div class="config-control"><label for="cfgRows">Lignes</label><select id="cfgRows">${Array.from({length:9},(_,i)=>{const n=i+2;return `<option value="${n}" ${n===4?'selected':''}>${n}</option>`}).join('')}</select></div>
+          </div>
+          <div class="config-summary"><span>Grille finale</span><b id="gridSummary">5 × 4 — 20 cases</b></div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-title"><strong>Thèmes</strong><span>2 à 6 thèmes</span></div>
+          <div class="config-control"><label for="cfgThemeCount">Nombre de thèmes</label>
+            <select id="cfgThemeCount">${Array.from({length:5},(_,i)=>{const n=i+2;return `<option value="${n}" ${n===4?'selected':''}>${n}</option>`}).join('')}</select>
+          </div>
+          <div class="theme-list" id="themeList" style="margin-top:9px"></div>
+          <div class="config-note">Les thèmes ne sont pas liés aux joueurs : l’animateur saisit librement leurs intitulés.</div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-title"><strong>Équipes</strong><span>2 équipes</span></div>
+          <div class="team-grid">
+            <div class="config-control"><label for="teamA">Équipe 1</label><input id="teamA" maxlength="30" value="Équipe A"></div>
+            <div class="config-control"><label for="teamB">Équipe 2</label><input id="teamB" maxlength="30" value="Équipe B"></div>
+          </div>
+        </div>
+        <div class="config-section">
+          <div class="config-section-title"><strong>Mémorisation</strong><span>5 à 120 secondes</span></div>
+          <div class="config-control"><label for="memorySeconds">Durée</label><select id="memorySeconds">
+            <option value="10">10 secondes</option><option value="15">15 secondes</option><option value="20" selected>20 secondes</option><option value="30">30 secondes</option><option value="45">45 secondes</option><option value="60">60 secondes</option>
+          </select></div>
+        </div>
+        <div class="config-actions">
+          <button class="modal-secondary" id="configCancel" type="button">Retour</button>
+          <button class="modal-primary" id="configCreate" type="button">Créer la partie</button>
+        </div>
       </div>`);
-    $('createCancel').onclick = closeModal;
-    $('createSubmit').onclick = () => {
-      const name = $('createName').value.trim() || 'Animateur';
-      socket.emit('createGame',{clientId:session?.clientId,name,config:{cols:5,rows:4,memorySeconds:20,themes:[
-        {id:'0',name:'Thème 1',color:'#2f80ff'},{id:'1',name:'Thème 2',color:'#ef3f4f'},{id:'2',name:'Thème 3',color:'#22c55e'},{id:'3',name:'Thème 4',color:'#f59e0b'}]},teamNames:['Équipe A','Équipe B']});
-      $('createSubmit').disabled = true; $('createSubmit').textContent = 'Création…';
+
+    const themeColors = ['#2f80ff','#ef3f4f','#22c55e','#f59e0b','#a855f7','#06b6d4'];
+    const renderThemes = () => {
+      const count = Number($('cfgThemeCount').value);
+      $('themeList').innerHTML = Array.from({length:count},(_,i)=>`
+        <div class="theme-item"><span class="theme-swatch" style="color:${themeColors[i]};background:${themeColors[i]}"></span>
+        <input class="form-input theme-name" data-index="${i}" maxlength="40" value="Thème ${i+1}" aria-label="Nom du thème ${i+1}"></div>`).join('');
+    };
+    const updateGridSummary = () => {
+      const cols=Number($('cfgCols').value), rows=Number($('cfgRows').value);
+      $('gridSizeLabel').textContent=`${cols*rows} cases`;
+      $('gridSummary').textContent=`${cols} × ${rows} — ${cols*rows} cases`;
+    };
+    renderThemes(); updateGridSummary();
+    $('cfgThemeCount').onchange=renderThemes; $('cfgCols').onchange=updateGridSummary; $('cfgRows').onchange=updateGridSummary;
+    $('configCancel').onclick=closeModal;
+    $('configCreate').onclick=()=>{
+      const cols=Number($('cfgCols').value), rows=Number($('cfgRows').value), memorySeconds=Number($('memorySeconds').value);
+      const themes=[...document.querySelectorAll('.theme-name')].map((input,i)=>({id:String(i),name:input.value.trim()||`Thème ${i+1}`,color:themeColors[i]}));
+      const teamNames=[$('teamA').value.trim()||'Équipe A',$('teamB').value.trim()||'Équipe B'];
+      $('configCreate').disabled=true; $('configCreate').textContent='Création…';
+      socket.emit('createGame',{clientId:session?.clientId,name:'Animateur',config:{cols,rows,memorySeconds,themes},teamNames});
     };
   };
 
