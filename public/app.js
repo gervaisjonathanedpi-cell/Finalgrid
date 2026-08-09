@@ -136,6 +136,9 @@
     const cols = state.config.cols;
     const themeById = Object.fromEntries((state.themes || []).map(t => [t.id, t]));
     const currentPlayer = (state.users || []).find(u => u.id === state.currentPlayerId);
+    if(state.currentPlayerId===session?.clientId && currentState?.currentPlayerId!==state.currentPlayerId){
+      setTimeout(()=>playGameSound('yourTurn'),0);
+    }
     const currentCell = state.currentCellId ? (state.grid || []).find(c => c.id === Number(state.currentCellId)) : null;
     const currentTheme = currentCell ? themeById[currentCell.themeId] : null;
 
@@ -210,7 +213,7 @@
       const winner=scores.find(t=>t.id===winnerId);
       if(resultImage) {
         controls+=`<div class="game-result-card"><img src="${resultImage}" alt="${iWon?'Victoire':'Défaite'}"></div>`;
-        setTimeout(()=>playGameSound(iWon?'victory':'defeat'),0);
+        
       }
       controls+=`<div class="game-finish-panel">
         <div class="game-finish-title">${winner ? `🏆 ${escapeHtml(winner.name)} gagne !` : '🏁 Fin de partie'}</div>
@@ -246,7 +249,7 @@
 
     if($('memoryStopBtn'))$('memoryStopBtn').onclick=()=>socket.emit('stopMemory');
     if($('cancelSelectionBtn'))$('cancelSelectionBtn').onclick=()=>socket.emit('cancelSelection');
-    if($('confirmSelectionBtn'))$('confirmSelectionBtn').onclick=()=>socket.emit('confirmSelection');
+    if($('confirmSelectionBtn'))$('confirmSelectionBtn').onclick=()=>{ playGameSound('confirmation'); socket.emit('confirmSelection'); };
     if($('endGameBtn'))$('endGameBtn').onclick=()=>socket.emit('endGame');
 
     document.querySelectorAll('[data-winner-team]').forEach(btn=>{
@@ -541,7 +544,12 @@
   const soundCache={};
   function playGameSound(name){
     if(!soundEnabled)return;
-    const src=`/assets/sounds/${name}.wav`;
+    const files={
+      confirmation:'/assets/sounds/confirmation.wav',
+      yourTurn:'/assets/sounds/your-turn.mp3'
+    };
+    const src=files[name];
+    if(!src)return;
     let a=soundCache[name];
     if(!a){a=new Audio(src);a.preload='auto';soundCache[name]=a;}
     try{a.currentTime=0;void a.play();}catch(e){}
@@ -551,7 +559,6 @@
     localStorage.setItem(soundEnabledKey,soundEnabled?'1':'0');
   }
 
-  socket.on('playSound',(name)=>playGameSound(name));
 
   socket.on('gameClosed',()=>{
     closeModal();
