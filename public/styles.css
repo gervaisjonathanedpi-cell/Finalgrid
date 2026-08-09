@@ -13,3 +13,24 @@
 .config-control select:focus,.config-control input:focus{border-color:#4f8fda;outline:none;box-shadow:0 0 0 2px #2f80ff18}
 .config-actions{z-index:2}
 @media(max-width:600px){.config-scroll{max-height:72vh;padding-right:4px}}
+
+/* V5: theme color controls + lobby */
+.theme-item{background:#07101c;border:1px solid #1d3049;border-radius:10px;padding:8px}.theme-color{width:28px;height:28px;padding:2px;border:1px solid #314968;border-radius:7px;background:#0b1422;cursor:pointer}.theme-item .theme-swatch{width:8px;height:8px}.lobby-panel{display:grid;gap:16px}.lobby-code{text-align:center;padding:13px;border:1px solid #23466f;border-radius:12px;background:#081323}.lobby-code span{display:block;color:#6f8099;font-size:9px;letter-spacing:.18em;font-weight:900}.lobby-code strong{display:block;font-size:30px;letter-spacing:.16em;margin-top:3px}.lobby-columns{display:grid;grid-template-columns:1.25fr 1fr;gap:12px}.lobby-box{border:1px solid #1d3049;background:#07101c;border-radius:12px;padding:12px}.lobby-box-title{font-size:10px;color:#71829b;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-bottom:9px}.team-card{border:1px solid #1d3049;border-radius:9px;padding:9px;margin-bottom:8px}.team-head{display:flex;align-items:center;gap:8px}.team-head b{margin-left:auto;color:#9fb0c7}.team-dot,.connection-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}.team-members{margin-top:8px;display:grid;gap:5px}.lobby-user{display:flex;align-items:center;gap:7px;min-height:28px;font-size:11px;color:#c3cddd}.lobby-user em{margin-left:auto;color:#66758d;font-size:9px;font-style:normal}.connection-dot{background:#4b5565}.connection-dot.online{background:#38d996;box-shadow:0 0 8px #38d996}.team-move{margin-left:auto;background:#0b1422;border:1px solid #263853;color:#dce5f2;border-radius:6px;padding:3px 5px;font-size:9px}.empty-members{color:#596981;font-size:10px;padding:5px}.presence-list{display:grid;gap:4px}.lobby-summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:9px 11px;background:#08111f;border:1px solid #1b2d45;border-radius:9px;color:#7889a1;font-size:10px}.lobby-actions{display:flex;gap:10px}.lobby-actions button{flex:1}@media(max-width:620px){.lobby-columns{grid-template-columns:1fr}.lobby-summary{display:grid;grid-template-columns:1fr 1fr}.lobby-actions{position:sticky;bottom:0;background:#070d19;padding-top:5px}}
+
+/* V6: theme owner fields and lobby theme overview */
+.theme-item{display:grid;grid-template-columns:28px 8px minmax(0,1fr);align-items:center;gap:8px}
+.theme-fields{min-width:0;display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.theme-fields .form-input{margin-top:0}
+.theme-owner::placeholder{color:#63738b}
+.lobby-themes{border:1px solid #1d3049;background:#07101c;border-radius:12px;padding:12px}
+.lobby-theme-list{display:grid;gap:6px}
+.lobby-theme{display:flex;align-items:center;gap:9px;padding:8px 9px;border:1px solid #172940;background:#08111e;border-radius:8px;min-width:0}
+.theme-dot-large{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.lobby-theme-name{font-size:11px;font-weight:800;color:#dbe3ef;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lobby-theme-owner{margin-left:auto;color:#73849d;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:620px){
+  .theme-item{grid-template-columns:28px 8px minmax(0,1fr)}
+  .theme-fields{grid-template-columns:1fr}
+  .lobby-theme{align-items:flex-start;flex-wrap:wrap}
+  .lobby-theme-owner{width:100%;margin-left:18px}
+}

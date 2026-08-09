@@ -2,6 +2,7 @@
   const socket = io();
   const KEY = 'finalGridSession';
   let session = JSON.parse(localStorage.getItem(KEY) || 'null');
+  let currentState = null;
   const $ = (id) => document.getElementById(id);
   const modalLayer = $('modalLayer'), modalTitle = $('modalTitle'), modalDescription = $('modalDescription'), modalContent = $('modalContent');
 
@@ -28,6 +29,84 @@
     el.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #71343e;border-radius:9px;background:#2a1016;color:#ff9aa4;font-size:12px;';
     modalContent.prepend(el);
   });
+
+
+  function showLobby(state) {
+    currentState = state;
+    const isHost = session?.role === 'host';
+    const players = (state.users || []).filter(u => u.role === 'player');
+    const spectators = (state.users || []).filter(u => u.role === 'spectator');
+    const hosts = (state.users || []).filter(u => u.role === 'host');
+
+    openModal('Lobby', `Code de partie : ${state.code}`, `
+      <div class="lobby-panel">
+        <div class="lobby-code"><span>CODE</span><strong>${state.code}</strong></div>
+
+        <div class="lobby-columns">
+          <div class="lobby-box">
+            <div class="lobby-box-title">Équipes</div>
+            ${state.teams.map(team => `
+              <div class="team-card">
+                <div class="team-head"><span class="team-dot" style="background:${team.color}"></span><strong>${escapeHtml(team.name)}</strong><b>${team.score}</b></div>
+                <div class="team-members">
+                  ${players.filter(p => p.teamId === team.id).map(p => `
+                    <div class="lobby-user">
+                      <span class="connection-dot ${p.connected?'online':''}"></span>
+                      <span>${escapeHtml(p.name)}</span>
+                      ${isHost ? `<select class="team-move" data-player="${p.id}"><option value="0" ${p.teamId==='0'?'selected':''}>Équipe 1</option><option value="1" ${p.teamId==='1'?'selected':''}>Équipe 2</option></select>` : ''}
+                    </div>`).join('') || '<div class="empty-members">Aucun joueur</div>'}
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <div class="lobby-box">
+            <div class="lobby-box-title">Présents</div>
+            <div class="presence-list">
+              ${hosts.map(u=>`<div class="lobby-user"><span class="connection-dot online"></span><span>${escapeHtml(u.name)}</span><em>Animateur</em></div>`).join('')}
+              ${spectators.map(u=>`<div class="lobby-user"><span class="connection-dot ${u.connected?'online':''}"></span><span>${escapeHtml(u.name)}</span><em>Spectateur</em></div>`).join('')}
+              ${!hosts.length && !spectators.length ? '<div class="empty-members">En attente de participants</div>' : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="lobby-themes">
+          <div class="lobby-box-title">Thèmes configurés</div>
+          <div class="lobby-theme-list">
+            ${(state.themes || []).map(theme => `
+              <div class="lobby-theme">
+                <span class="theme-dot-large" style="background:${theme.color};box-shadow:0 0 10px ${theme.color}"></span>
+                <span class="lobby-theme-name">${escapeHtml(theme.name)}</span>
+                <span class="lobby-theme-owner">${theme.chosenBy ? `Choisi par ${escapeHtml(theme.chosenBy)}` : 'Choix non renseigné'}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="lobby-summary">
+          <span>${players.length} joueur${players.length>1?'s':''}</span>
+          <span>${spectators.length} spectateur${spectators.length>1?'s':''}</span>
+          <span>${state.config.themeCount} thèmes · ${state.config.questionsPerTheme} questions/thème</span>
+        </div>
+
+        <div class="lobby-actions">
+          <button class="modal-secondary" id="lobbyLeave" type="button">Retour</button>
+          ${isHost ? `<button class="modal-primary" id="lobbyStart" type="button">Lancer la mémorisation</button>` : ''}
+        </div>
+      </div>`);
+
+    document.querySelectorAll('.team-move').forEach(sel => {
+      sel.onchange = () => socket.emit('setPlayerTeam', { playerId: sel.dataset.player, teamId: sel.value });
+    });
+    $('lobbyLeave').onclick = () => { closeModal(); socket.emit('returnLobby'); localStorage.removeItem(KEY); session=null; };
+    if (isHost) $('lobbyStart').onclick = () => {
+      socket.emit('startMemory');
+      $('lobbyStart').disabled = true;
+      $('lobbyStart').textContent = 'Lancement…';
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
 
   $('createBtn').onclick = () => {
     openModal('Configurer la partie',
@@ -81,8 +160,12 @@
       const count = Number($('cfgThemeCount').value);
       $('themeList').innerHTML = Array.from({length:count},(_,i)=>`
         <div class="theme-item">
+          <input class="theme-color" type="color" data-index="${i}" value="${themeColors[i]}" aria-label="Couleur du thème ${i+1}">
           <span class="theme-swatch" style="color:${themeColors[i]};background:${themeColors[i]}"></span>
-          <input class="form-input theme-name" data-index="${i}" maxlength="40" value="Thème ${i+1}" aria-label="Nom du thème ${i+1}">
+          <div class="theme-fields">
+            <input class="form-input theme-name" data-index="${i}" maxlength="40" value="Thème ${i+1}" aria-label="Nom du thème ${i+1}" placeholder="Nom du thème">
+            <input class="form-input theme-owner" data-index="${i}" maxlength="40" value="" aria-label="Joueur ayant choisi le thème ${i+1}" placeholder="Choisi par…">
+          </div>
         </div>`).join('');
     };
 
@@ -148,14 +231,13 @@
   };
 
   socket.on('joined',(data)=>{
-    saveSession({gameCode:data.code,role:data.role,teamId:session?.teamId??null});
+    saveSession({gameCode:data.code,role:data.role,teamId:data.state?.users?.find(u=>u.id===session?.clientId)?.teamId ?? session?.teamId ?? null});
     closeModal();
-    openModal('Connexion réussie',`Partie ${data.code}. Le lobby complet sera construit dans l’étape suivante.`,`
-      <div style="padding:18px;border:1px solid #263853;border-radius:12px;background:#060c17;text-align:center">
-        <div style="color:#7f8ea6;font-size:10px;font-weight:900;letter-spacing:.16em">CODE DE PARTIE</div>
-        <div style="font-size:34px;font-weight:950;letter-spacing:.16em;margin-top:7px">${data.code}</div>
-      </div>
-      <div class="form-actions" style="margin-top:14px"><button class="modal-primary" id="closeConnected" type="button">Continuer</button></div>`);
-    $('closeConnected').onclick=closeModal;
+    showLobby(data.state);
+  });
+
+  socket.on('state',(state)=>{
+    currentState = state;
+    if (state.phase === 'LOBBY' && session?.gameCode === state.code) showLobby(state);
   });
 })();
