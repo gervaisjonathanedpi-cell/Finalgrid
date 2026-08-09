@@ -232,27 +232,31 @@
     };
   }
 
-  function buildGridStepTwo(config) {
+  function buildGridStepTwo(config, existingAssignments = null) {
     const total = config.themeCount * config.questionsPerTheme;
     const cols = Math.max(2, Math.ceil(Math.sqrt(total)));
     const rows = Math.ceil(total / cols);
-    const assignments = Array(total).fill(null);
+    const assignments = existingAssignments ? [...existingAssignments] : Array(total).fill(null);
     const counts = Object.fromEntries(config.themes.map(t => [t.id, 0]));
 
-    const render = () => {
-      const allFull = config.themes.every(t => counts[t.id] === config.questionsPerTheme);
-      const placed = Object.values(counts).reduce((a,b) => a+b, 0);
+    assignments.forEach(themeId => {
+      if (themeId !== null && counts[themeId] !== undefined) counts[themeId]++;
+    });
 
-      const grid = Array.from({length:total},(_,i) => {
-        const theme = assignments[i] !== null ? config.themes.find(t => t.id === assignments[i]) : null;
-        return `<button class="builder-cell ${theme ? 'filled' : ''}" data-cell="${i}" type="button" ${theme ? `style="--cell-color:${theme.color}"` : ''}>
+    const renderBuilder = () => {
+      const filled = assignments.filter(v => v !== null).length;
+      const allFull = filled === total && config.themes.every(t => counts[t.id] === config.questionsPerTheme);
+
+      const grid = Array.from({length:total},(_,i)=>{
+        const theme = assignments[i] !== null ? config.themes.find(t=>t.id===assignments[i]) : null;
+        return `<button class="builder-cell ${theme?'filled':''}" data-cell="${i}" type="button" ${theme?'style="--cell-color:'+theme.color+'"':''}>
           <span class="builder-cell-number">${i+1}</span>
-          ${theme ? `<span class="builder-cell-theme">${escapeHtml(theme.name)}</span>` : `<span class="builder-cell-empty">+</span>`}
+          ${theme?`<span class="builder-cell-theme">${escapeHtml(theme.name)}</span>`:`<span class="builder-cell-empty">+</span>`}
         </button>`;
       }).join('');
 
-      const summary = config.themes.map(t => `
-        <div class="theme-summary-row ${counts[t.id] === config.questionsPerTheme ? 'complete' : ''}">
+      const summary = config.themes.map(t=>`
+        <div class="theme-summary-row ${counts[t.id]===config.questionsPerTheme?'complete':''}">
           <span class="summary-theme-dot" style="background:${t.color};box-shadow:0 0 8px ${t.color}"></span>
           <span class="summary-theme-name">${escapeHtml(t.name)}</span>
           <strong>${counts[t.id]} / ${config.questionsPerTheme}</strong>
@@ -262,19 +266,17 @@
         'Attribuez un thème à chaque case. Chaque thème doit atteindre exactement son quota.',
         `<div class="grid-builder">
           <div class="builder-summary">
-            <div class="config-section-title"><strong>Questions des thèmes</strong><span>${placed} / ${total}</span></div>
+            <div class="config-section-title"><strong>Questions des thèmes</strong><span>${filled} / ${total}</span></div>
             <div class="theme-summary-list">${summary}</div>
             <div class="config-note">Cliquez sur une case pour lui attribuer un thème. Une case déjà remplie peut être modifiée ou vidée.</div>
           </div>
-
           <div class="builder-grid-wrap">
             <div class="builder-grid" style="--cols:${cols}">${grid}</div>
-            <div class="builder-legend"><span>Case vide</span><span>${cols} × ${rows}</span></div>
+            <div class="builder-legend"><span>Case vide</span><span>•</span><span>${cols} × ${rows}</span></div>
           </div>
-
           <div class="config-actions">
             <button class="modal-secondary" id="gridBack" type="button">← Modifier la configuration</button>
-            <button class="modal-primary" id="createConfiguredGame" type="button" ${allFull ? '' : 'disabled'}>${allFull ? 'Créer la partie' : `Compléter la grille (${placed}/${total})`}</button>
+            <button class="modal-primary" id="createConfiguredGame" type="button" ${allFull?'':'disabled'}>${allFull?'Créer la partie':'Compléter la grille'}</button>
           </div>
         </div>`);
 
@@ -283,59 +285,70 @@
           const index = Number(cell.dataset.cell);
           const current = assignments[index];
           const available = config.themes.filter(t => counts[t.id] < config.questionsPerTheme || t.id === current);
-          const options = available.map(t => `<button type="button" class="theme-choice" data-theme="${t.id}" style="--choice-color:${t.color}">
+          const options = available.map(t=>`<button type="button" class="theme-choice" data-theme="${t.id}" style="--choice-color:${t.color}">
             <span class="theme-choice-dot"></span><span>${escapeHtml(t.name)}</span><b>${counts[t.id]} / ${config.questionsPerTheme}</b>
           </button>`).join('');
           const clear = current !== null ? `<button type="button" class="theme-choice clear-choice" data-theme="__clear"><span class="theme-choice-dot"></span><span>Vider la case</span></button>` : '';
 
-          openModal(`Case ${index+1}`, current === null ? 'Choisissez le thème à attribuer à cette case.' : 'Modifiez le thème ou videz la case.',
+          openModal(`Case ${index+1}`,
+            current===null ? 'Choisissez le thème à attribuer à cette case.' : 'Modifiez le thème ou videz la case.',
             `<div class="theme-choice-list">${options}${clear}</div>
              <div class="form-actions"><button class="modal-secondary" id="choiceCancel" type="button">Annuler</button></div>`);
 
           document.querySelectorAll('.theme-choice').forEach(choice => {
             choice.onclick = () => {
               const selected = choice.dataset.theme;
+
+              // Update the persistent assignment array before returning to the builder.
               if (current !== null) counts[current]--;
               assignments[index] = selected === '__clear' ? null : selected;
               if (assignments[index] !== null) counts[assignments[index]]++;
-              buildGridStepTwo(config);
+
+              renderBuilder();
             };
           });
-          $('choiceCancel').onclick = () => buildGridStepTwo(config);
+
+          $('choiceCancel').onclick = renderBuilder;
         };
       });
 
       $('gridBack').onclick = () => buildConfigStepOne();
 
-      $('createConfiguredGame').onclick = () => {
-        if (!allFull) return;
-        const grid = assignments.map((themeId, i) => ({
-          id:i+1,
-          themeId,
-          state:'available',
-          revealedAt:null,
-          timerEndsAt:null
-        }));
+      const createButton = $('createConfiguredGame');
+      if (createButton) {
+        createButton.onclick = () => {
+          if (!allFull) return;
 
-        socket.emit('createGame', {
-          clientId:session?.clientId,
-          name:'Animateur',
-          config:{
-            themeCount:config.themeCount,
-            questionsPerTheme:config.questionsPerTheme,
-            memorySeconds:config.memorySeconds,
-            themes:config.themes,
-            grid
-          },
-          teamNames:config.teamNames,
-          teamColors:config.teamColors
-        });
-        $('createConfiguredGame').disabled = true;
-        $('createConfiguredGame').textContent = 'Création…';
-      };
+          const grid = assignments.map((themeId,i)=>({
+            id:i+1,
+            themeId,
+            questionIndex:null,
+            state:'available',
+            revealedAt:null,
+            timerEndsAt:null
+          }));
+
+          socket.emit('createGame', {
+            clientId:session?.clientId,
+            name:'Animateur',
+            config:{
+              themeCount:config.themeCount,
+              questionsPerTheme:config.questionsPerTheme,
+              memorySeconds:config.memorySeconds,
+              themes:config.themes,
+              grid
+            },
+            teamNames:config.teamNames,
+            teamColors:config.teamColors
+          });
+
+          createButton.disabled=true;
+          createButton.textContent='Création…';
+        };
+      }
     };
 
-    render();
+    renderBuilder();
   }
 
   $('createBtn').onclick = buildConfigStepOne;

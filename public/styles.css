@@ -43,3 +43,7 @@
 /* V8: configuration step separation + default white sixth theme */
 .theme-swatch{border:1px solid #3b4e67}
 .theme-color{border:1px solid #314968}
+
+/* V9: grid assignment persistence feedback */
+.builder-cell.filled{transition:transform .12s ease,box-shadow .15s ease,border-color .15s ease}
+.builder-cell.filled .builder-cell-theme{z-index:1}
