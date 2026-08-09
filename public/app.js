@@ -53,10 +53,21 @@
                     <div class="lobby-user">
                       <span class="connection-dot ${p.connected?'online':''}"></span>
                       <span>${escapeHtml(p.name)}</span>
-                      ${isHost ? `<select class="team-move" data-player="${p.id}"><option value="0" ${p.teamId==='0'?'selected':''}>Équipe 1</option><option value="1" ${p.teamId==='1'?'selected':''}>Équipe 2</option></select>` : ''}
+                      ${isHost ? `<select class="team-move" data-player="${p.id}"><option value="0" ${p.teamId==='0'?'selected':''}>Équipe 1</option><option value="1" ${p.teamId==='1'?'selected':''}>Équipe 2</option></select>` : (session?.clientId===p.id ? `<div class="team-pick-actions"><button class="team-pick" data-team="${team.id==='0'?'1':'0'}" type="button">Changer</button></div>` : '')}
                     </div>`).join('') || '<div class="empty-members">Aucun joueur</div>'}
                 </div>
               </div>`).join('')}
+          </div>
+
+          <div class="lobby-box">
+            <div class="lobby-box-title">Joueurs sans équipe</div>
+            <div class="unassigned-list">
+              ${players.filter(p => p.teamId === null).map(p => `
+                <div class="lobby-user">
+                  <span class="connection-dot ${p.connected?'online':''}"></span><span>${escapeHtml(p.name)}</span>
+                  ${p.id===session?.clientId ? `<div class="team-pick-actions"><button class="team-pick" data-team="0" type="button">Équipe 1</button><button class="team-pick" data-team="1" type="button">Équipe 2</button></div>` : ''}
+                </div>`).join('') || '<div class="empty-members">Tous les joueurs ont une équipe</div>'}
+            </div>
           </div>
 
           <div class="lobby-box">
@@ -95,6 +106,9 @@
 
     document.querySelectorAll('.team-move').forEach(sel => {
       sel.onchange = () => socket.emit('setPlayerTeam', { playerId: sel.dataset.player, teamId: sel.value });
+    });
+    document.querySelectorAll('.team-pick').forEach(btn => {
+      btn.onclick = () => socket.emit('chooseTeam', { teamId: btn.dataset.team });
     });
     $('lobbyLeave').onclick = () => { closeModal(); socket.emit('returnLobby'); localStorage.removeItem(KEY); session=null; };
     if (isHost) $('lobbyStart').onclick = () => {
