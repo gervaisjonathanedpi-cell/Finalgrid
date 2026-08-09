@@ -114,3 +114,7 @@
 .winner-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .game-waiting-host{text-align:center;font-size:10px;color:#77879e;padding:6px}
 @media(max-width:600px){.game-finish-scores,.winner-choice{grid-template-columns:1fr}}
+
+/* TEST: host can end the game at any time, with confirmation */
+.modal-danger{border:1px solid #6d3040;background:#2a0f18;color:#ffd9e1;border-radius:8px;padding:9px 12px;font-weight:800;cursor:pointer}
+.modal-danger:hover{border-color:#ff6b83}

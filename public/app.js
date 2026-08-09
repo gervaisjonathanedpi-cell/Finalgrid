@@ -183,6 +183,8 @@
     else if(finished) subtitle=state.winnerTeamId ? "Partie terminée." : "Toutes les cases ont été révélées. Déterminez le vainqueur.";
 
     let controls='';
+    if(isHost) controls+=`<button class="modal-danger" id="forceEndGameBtn">Terminer la partie</button>`;
+
     if(isHost&&(preMemory||waiting)&&state.grid.every(c=>c.state==='available'))
       controls+=`<button class="modal-primary" id="memoryStartBtn">Mémorisation</button>`;
     if(isHost&&memoryActive)
@@ -220,6 +222,12 @@
       </div>`);
 
     if($('memoryStartBtn'))$('memoryStartBtn').onclick=()=>socket.emit('startMemoryTimer');
+    if($('forceEndGameBtn'))$('forceEndGameBtn').onclick=()=>{
+      if(window.confirm('Êtes-vous sûr de vouloir terminer la partie ? Cette action est définitive.')){
+        socket.emit('forceEndGame');
+      }
+    };
+
     if($('memoryStopBtn'))$('memoryStopBtn').onclick=()=>socket.emit('stopMemory');
     if($('cancelSelectionBtn'))$('cancelSelectionBtn').onclick=()=>socket.emit('cancelSelection');
     if($('confirmSelectionBtn'))$('confirmSelectionBtn').onclick=()=>socket.emit('confirmSelection');
