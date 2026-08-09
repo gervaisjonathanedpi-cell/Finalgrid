@@ -22,11 +22,12 @@ function userFor(game, socket) { return game?.users.get(socket.data.clientId); }
 function connectedUsers(game) { return [...game.users.values()].filter(u => u.connected); }
 function sendError(socket, message) { socket.emit('appError', message); }
 function makeGrid(config) {
-  const total = config.rows * config.cols;
   const cells = [];
-  for (let i = 0; i < total; i++) {
-    const theme = config.themes[i % config.themes.length];
-    cells.push({ id: i + 1, themeId: theme.id, state: 'available', revealedAt: null, timerEndsAt: null });
+  let id = 1;
+  for (const theme of config.themes) {
+    for (let q = 0; q < config.questionsPerTheme; q++) {
+      cells.push({ id: id++, themeId: theme.id, questionIndex: q + 1, state: 'available', revealedAt: null, timerEndsAt: null });
+    }
   }
   // Fisher-Yates so themes are distributed but positions are unpredictable.
   for (let i = cells.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [cells[i], cells[j]] = [cells[j], cells[i]]; }
@@ -34,13 +35,28 @@ function makeGrid(config) {
 }
 function newGame(input) {
   const code = makeCode();
-  const cols = clampInt(input.cols, 3, 12, 5);
-  const rows = clampInt(input.rows, 2, 10, 4);
+  const themeCount = clampInt(input.themeCount, 2, 6, 4);
+  const questionsPerTheme = clampInt(input.questionsPerTheme, 1, 10, 5);
+  const totalCells = themeCount * questionsPerTheme;
+  const cols = Math.max(2, Math.ceil(Math.sqrt(totalCells)));
+  const rows = Math.ceil(totalCells / cols);
   const palette = ['#2f80ff','#ef3f4f','#22c55e','#f59e0b','#a855f7','#06b6d4'];
-  const themes = input.themes.slice(0, 6).map((t, i) => ({ id: String(i), name: clean(t.name, `Thème ${i + 1}`, 40), color: palette[i] }));
+  const themes = input.themes.slice(0, themeCount).map((t, i) => ({
+    id: String(i),
+    name: clean(t.name, `Thème ${i + 1}`, 40),
+    color: /^#[0-9a-fA-F]{6}$/.test(String(t.color || '')) ? String(t.color) : palette[i],
+    chosenBy: clean(t.chosenBy, '', 40)
+  }));
   const game = {
     code, createdAt: Date.now(), lastEmptyAt: null, closed: false,
-    config: { cols, rows, memorySeconds: clampInt(input.memorySeconds, 5, 120, 20) },
+    config: {
+      themeCount,
+      questionsPerTheme,
+      cols,
+      rows,
+      totalCells,
+      memorySeconds: clampInt(input.memorySeconds, 5, 120, 20)
+    },
     themes, grid: makeGrid({ cols, rows, themes }),
     teams: [0,1].map(i => ({ id: String(i), name: clean(input.teamNames?.[i], `Équipe ${i + 1}`, 30), color: TEAM_COLORS[i], score: 0 })),
     users: new Map(),
@@ -130,7 +146,13 @@ io.on('connection', socket => {
   socket.on('createGame', ({ clientId, name, config, teamNames }) => {
     const themes = Array.isArray(config?.themes) ? config.themes : [];
     if (themes.length < 2 || themes.length > 6) return sendError(socket, 'La partie doit avoir entre 2 et 6 thèmes.');
-    const game = newGame({ cols:config.cols, rows:config.rows, memorySeconds:config.memorySeconds, themes, teamNames });
+    const game = newGame({
+      themeCount: config.themeCount,
+      questionsPerTheme: config.questionsPerTheme,
+      memorySeconds: config.memorySeconds,
+      themes,
+      teamNames
+    });
     const id = clientId || makeId();
     const user = { id, role:'host', name:clean(name,'Animateur'), teamId:null, connected:true, socketId:socket.id };
     game.users.set(id,user); persistSession(socket,game,user); socket.join(game.code);
@@ -154,9 +176,21 @@ io.on('connection', socket => {
     socket.emit('joined',{code,role:r,state:publicState(game),resumed:!!game.users.get(id)}); broadcast(game);
   });
 
+  socket.on('setPlayerTeam', ({ playerId, teamId }) => {
+    const ctx = requireRole(socket, 'host'); if (!ctx) return;
+    const { game } = ctx;
+    if (game.phase !== PHASES.LOBBY) return;
+    const player = game.users.get(String(playerId));
+    const team = game.teams.find(t => t.id === String(teamId));
+    if (!player || player.role !== 'player' || !team) return;
+    player.teamId = team.id;
+    broadcast(game);
+  });
+
   socket.on('startMemory', () => {
     const ctx = requireRole(socket,'host'); if (!ctx) return; const {game}=ctx;
     if (game.phase !== PHASES.LOBBY && game.phase !== PHASES.WAITING) return;
+    if (!players(game).length) return sendError(socket, 'Il faut au moins un joueur avant de lancer la mémorisation.');
     if (game.grid.some(c => c.state !== 'available')) return sendError(socket,'La mémorisation est verrouillée après la première révélation.');
     game.phase = PHASES.MEMORY; game.memoryEndsAt = Date.now() + game.config.memorySeconds * 1000; broadcast(game);
   });
